@@ -63,19 +63,21 @@
         .menu-button {
             display: inline-block;
             margin: 0 10px;
-            padding: 10px 20px;
-            border: 2px solid #fff;
+            padding: 15px 25px;
+            border: 3px solid #fff;
             background: #000;
             color: #fff;
             cursor: pointer;
             font-family: 'Courier New', monospace;
-            font-size: 14px;
+            font-size: 16px;
             user-select: none;
+            transition: all 0.2s ease;
         }
         
         .menu-button:hover, .menu-button.selected {
             background: #fff;
             color: #000;
+            transform: scale(1.1);
         }
         
         .stats {
@@ -105,6 +107,18 @@
             color: #fff;
             font-size: 18px;
             z-index: 100;
+        }
+        
+        .menu-instructions {
+            position: absolute;
+            bottom: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            color: #ffff00;
+            font-size: 14px;
+            z-index: 15;
+            display: none;
         }
         
         .fade-out {
@@ -145,6 +159,10 @@
             <p>Press SPACE to continue</p>
         </div>
         
+        <div class="menu-instructions" id="menuInstructions">
+            <p>Use ARROW KEYS to select • Press ENTER to confirm • Click with mouse</p>
+        </div>
+        
         <div class="menu" id="menu">
             <div class="menu-button" data-action="fight">FIGHT</div>
             <div class="menu-button" data-action="act">ACT</div>
@@ -163,6 +181,7 @@
         const dialogue = document.getElementById('dialogue');
         const dialogueText = document.getElementById('dialogueText');
         const menu = document.getElementById('menu');
+        const menuInstructions = document.getElementById('menuInstructions');
         const instructions = document.getElementById('instructions');
         const playerHPSpan = document.getElementById('playerHP');
         const bossHPSpan = document.getElementById('bossHP');
@@ -191,6 +210,7 @@
         let currentAttackType = '';
         let turnCounter = 0;
         let playerItems = { treats: 3, catnip: 1 };
+        let actionSelected = false; // Flag to track if action was selected
         
         // Enhanced cat boss dialogues
         const bossDialogues = [
@@ -224,19 +244,39 @@
             'litter': 'Litter Box Revenge'
         };
         
-        // Input handling
+        // Input handling - FIXED to prevent auto-selection
         document.addEventListener('keydown', (e) => {
             keys[e.key.toLowerCase()] = true;
             
-            if (gameState === 'intro' && e.code === 'Space') {
-                startGame();
+            // SPACE only works for dialogue and intro
+            if ((gameState === 'intro' || gameState === 'dialogue') && e.code === 'Space') {
+                if (gameState === 'intro') {
+                    startGame();
+                } else if (gameState === 'dialogue') {
+                    nextDialogue();
+                }
                 e.preventDefault();
-            } else if (gameState === 'menu') {
-                handleMenuInput(e);
+            } 
+            // ENTER only works for menu selection
+            else if (gameState === 'menu' && e.key === 'Enter') {
+                selectMenuItem();
                 e.preventDefault();
-            } else if (gameState === 'dialogue' && e.code === 'Space') {
-                nextDialogue();
-                e.preventDefault();
+            }
+            // Arrow keys for menu navigation only
+            else if (gameState === 'menu') {
+                if (e.key === 'ArrowLeft' || e.key === 'a') {
+                    if (selectedMenuItem > 0) {
+                        selectedMenuItem--;
+                        updateMenuSelection();
+                    }
+                    e.preventDefault();
+                } else if (e.key === 'ArrowRight' || e.key === 'd') {
+                    if (selectedMenuItem < 3) {
+                        selectedMenuItem++;
+                        updateMenuSelection();
+                    }
+                    e.preventDefault();
+                }
             }
         });
         
@@ -244,28 +284,17 @@
             keys[e.key.toLowerCase()] = false;
         });
         
-        // Menu handling
+        // Menu handling - FIXED click handling
         document.querySelectorAll('.menu-button').forEach((button, index) => {
             button.addEventListener('click', (e) => {
                 if (gameState === 'menu') {
                     selectedMenuItem = index;
+                    updateMenuSelection();
                     selectMenuItem();
                 }
                 e.preventDefault();
             });
         });
-        
-        function handleMenuInput(e) {
-            if ((e.key === 'ArrowLeft' || e.key === 'a') && selectedMenuItem > 0) {
-                selectedMenuItem--;
-                updateMenuSelection();
-            } else if ((e.key === 'ArrowRight' || e.key === 'd') && selectedMenuItem < 3) {
-                selectedMenuItem++;
-                updateMenuSelection();
-            } else if (e.code === 'Space' || e.key === 'Enter') {
-                selectMenuItem();
-            }
-        }
         
         function updateMenuSelection() {
             const buttons = document.querySelectorAll('.menu-button');
@@ -275,36 +304,64 @@
         }
         
         function selectMenuItem() {
+            if (actionSelected) return; // Prevent double-selection
+            actionSelected = true;
+            
             const actions = ['fight', 'act', 'item', 'mercy'];
             const action = actions[selectedMenuItem];
+            
+            // Hide menu immediately after selection
+            menu.style.display = 'none';
+            menuInstructions.style.display = 'none';
+            
+            let dialogueMessage = '';
+            let shouldContinue = true;
             
             switch(action) {
                 case 'fight':
                     const damage = Math.floor(Math.random() * 15) + 10;
                     boss.hp = Math.max(0, boss.hp - damage);
-                    showDialogue(`* You scratch Whiskers for ${damage} damage! They look annoyed but impressed.`);
+                    dialogueMessage = `* You scratch Whiskers for ${damage} damage! They look annoyed but impressed.`;
                     boss.mood = 'annoyed';
                     break;
                 case 'act':
-                    handleActMenu();
+                    const actResult = handleActMenu();
+                    dialogueMessage = actResult.text;
+                    boss.mood = actResult.mood;
                     break;
                 case 'item':
-                    handleItemMenu();
+                    dialogueMessage = handleItemMenu();
                     break;
                 case 'mercy':
                     if (boss.hp < 30 || boss.mood === 'friendly') {
-                        showDialogue("* Whiskers accepts your mercy. They curl up and start purring. You win!");
+                        dialogueMessage = "* Whiskers accepts your mercy. They curl up and start purring. You win!";
                         gameState = 'win';
+                        shouldContinue = false;
                     } else {
-                        showDialogue("* Whiskers is not ready to forgive your trespassing yet. *hisses*");
+                        dialogueMessage = "* Whiskers is not ready to forgive your trespassing yet. *hisses*";
                     }
                     break;
             }
             
             updateStats();
+            
+            // Check win condition
             if (boss.hp <= 0) {
                 gameState = 'win';
-                showDialogue("* Whiskers has been defeated! They flop over dramatically and demand belly rubs.");
+                dialogueMessage = "* Whiskers has been defeated! They flop over dramatically and demand belly rubs.";
+                shouldContinue = false;
+            }
+            
+            // Show result dialogue
+            showDialogue(dialogueMessage);
+            
+            // If game continues, prepare for next turn
+            if (shouldContinue && gameState !== 'win') {
+                setTimeout(() => {
+                    if (gameState === 'dialogue') {
+                        // This will be handled by nextDialogue when user presses space
+                    }
+                }, 100);
             }
         }
         
@@ -316,9 +373,7 @@
                 { text: "* You point at a random spot. Whiskers looks where you're pointing.", mood: 'distracted' }
             ];
             
-            const randomAct = actOptions[Math.floor(Math.random() * actOptions.length)];
-            boss.mood = randomAct.mood;
-            showDialogue(randomAct.text);
+            return actOptions[Math.floor(Math.random() * actOptions.length)];
         }
         
         function handleItemMenu() {
@@ -326,14 +381,14 @@
                 playerItems.treats--;
                 player.hp = Math.min(player.maxHP, player.hp + 8);
                 boss.mood = 'friendly';
-                showDialogue("* You offer Whiskers some treats. They grudgingly accept and seem less hostile.");
+                return "* You offer Whiskers some treats. They grudgingly accept and seem less hostile.";
             } else if (playerItems.catnip > 0) {
                 playerItems.catnip--;
                 player.statusEffects.catnip = 120; // 2 seconds of effect
                 boss.mood = 'confused';
-                showDialogue("* You scatter catnip around. Whiskers becomes entranced, and you feel dizzy too!");
+                return "* You scatter catnip around. Whiskers becomes entranced, and you feel dizzy too!";
             } else {
-                showDialogue("* You have no items left! Maybe you should have brought more treats...");
+                return "* You have no items left! Maybe you should have brought more treats...";
             }
         }
         
@@ -347,6 +402,7 @@
             gameState = 'dialogue';
             dialogue.style.display = 'block';
             menu.style.display = 'none';
+            menuInstructions.style.display = 'none';
             dialogueText.textContent = text;
         }
         
@@ -354,8 +410,12 @@
             if (gameState === 'win' || gameState === 'gameover') return;
             
             dialogue.style.display = 'none';
-            if (boss.hp <= 0) return;
             
+            if (boss.hp <= 0 || gameState === 'win') {
+                return;
+            }
+            
+            // After dialogue, go to attack phase
             gameState = 'attack';
             startAttackPhase();
         }
@@ -364,6 +424,7 @@
             attacks = [];
             particles = [];
             attackTimer = 0;
+            actionSelected = false; // Reset action selection flag
             
             // Reset player position to center of battle box
             player.x = battleBox.x + battleBox.width / 2;
@@ -373,27 +434,32 @@
             boss.phase = Math.floor((boss.maxHP - boss.hp) / 20) + 1;
             currentPhaseSpan.textContent = boss.phase;
             
+            // Attack phase lasts 4 seconds
             setTimeout(() => {
                 endAttackPhase();
-            }, 5000); // 5 seconds of attacks
+            }, 4000);
         }
         
         function endAttackPhase() {
             attacks = [];
             particles = [];
             currentAttackSpan.textContent = 'Preparing...';
+            
+            // Go to menu state and STAY there until user selects
             gameState = 'menu';
             menu.style.display = 'block';
+            menuInstructions.style.display = 'block';
             selectedMenuItem = 0;
             updateMenuSelection();
             turnCounter++;
             
-            // Boss dialogue
-            if (turnCounter < bossDialogues.length) {
-                setTimeout(() => {
-                    showDialogue(bossDialogues[turnCounter]);
-                }, 500);
-            }
+            // Show boss dialogue after a short delay, but only if still in menu
+            setTimeout(() => {
+                if (gameState === 'menu' && turnCounter < bossDialogues.length) {
+                    // Don't auto-advance, let user finish their action first
+                    // The dialogue will be shown after their next action
+                }
+            }, 500);
         }
         
         function updateStats() {
