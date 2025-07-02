@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Whiskers - The Ultimate Cat Boss Fight Enhanced</title>
+    <title>Cans - The Ultimate Cat Boss Fight Enhanced</title>
     <style>
         body {
             margin: 0;
@@ -134,6 +134,29 @@
             font-size: 12px;
             z-index: 5;
         }
+
+        .ending-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            z-index: 50;
+        }
+
+        .victory-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: #ffff00;
+            font-size: 24px;
+            z-index: 100;
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -142,7 +165,7 @@
         
         <div class="stats">
             <div>HP: <span id="playerHP">20</span>/20</div>
-            <div>Whiskers HP: <span id="bossHP">100</span>/100</div>
+            <div>Cans HP: <span id="bossHP">100</span>/100</div>
         </div>
         
         <div class="attack-info" id="attackInfo">
@@ -153,7 +176,7 @@
         <div class="status-effect" id="statusEffect"></div>
         
         <div id="instructions">
-            <h2>🐱 WHISKERS - THE ULTIMATE CAT 🐱</h2>
+            <h2>🐱 CANS - THE ULTIMATE CAT 🐱</h2>
             <p>Use ARROW KEYS or WASD to move your heart and dodge attacks!</p>
             <p>Choose your actions wisely during battle!</p>
             <p>Press SPACE to continue</p>
@@ -173,6 +196,13 @@
         <div class="dialogue-box" id="dialogue">
             <div class="dialogue-text" id="dialogueText"></div>
         </div>
+
+        <div class="ending-overlay" id="endingOverlay"></div>
+        
+        <div class="victory-text" id="victoryText">
+            <h1>✨ VICTORY ✨</h1>
+            <p>You have befriended Cans!</p>
+        </div>
     </div>
 
     <script>
@@ -189,9 +219,11 @@
         const currentPhaseSpan = document.getElementById('currentPhase');
         const currentAttackSpan = document.getElementById('currentAttack');
         const statusEffect = document.getElementById('statusEffect');
+        const endingOverlay = document.getElementById('endingOverlay');
+        const victoryText = document.getElementById('victoryText');
         
         // Game state
-        let gameState = 'intro'; // intro, menu, attack, dialogue, win, gameover
+        let gameState = 'intro'; // intro, menu, attack, dialogue, win, gameover, ending, death_animation
         let player = { 
             x: 400, 
             y: 300, 
@@ -200,7 +232,16 @@
             maxHP: 20,
             statusEffects: {} // catnip, sleepy, etc
         };
-        let boss = { hp: 100, maxHP: 100, phase: 0, mood: 'aggressive' };
+        let boss = { 
+            hp: 100, 
+            maxHP: 100, 
+            phase: 0, 
+            mood: 'aggressive',
+            deathTimer: 0,
+            opacity: 1.0,
+            scale: 1.0,
+            deathEffects: []
+        };
         let attacks = [];
         let particles = [];
         let keys = {};
@@ -211,10 +252,11 @@
         let turnCounter = 0;
         let playerItems = { treats: 3, catnip: 1 };
         let actionSelected = false; // Flag to track if action was selected
+        let endingDialogueIndex = 0;
         
         // Enhanced cat boss dialogues
         const bossDialogues = [
-            "* Whiskers appears, fur bristling with determination!",
+            "* Cans appears, fur bristling with determination!",
             "* mrow... you think you can defeat me, human?",
             "* i've been practicing my zoomies... prepare yourself!",
             "* time to show you what happens when you disturb my nap...",
@@ -223,6 +265,20 @@
             "* *sniff sniff* you wouldn't happen to have treats, would you?",
             "* fine, fine... you're alright for a human i suppose",
             "* *purrs reluctantly* maybe we can share the sunny spot on the carpet"
+        ];
+
+        // Ending dialogue sequence
+        const endingDialogues = [
+            "* Cans staggers, breathing heavily...",
+            "* mrow... you're... stronger than i thought...",
+            "* *coughs* but wait... you didn't really want to hurt me, did you?",
+            "* i can see it in your eyes... you just wanted to be friends...",
+            "* *purrs weakly* you know what? i'm tired of fighting too...",
+            "* how about we call it even? you can pet me... just this once...",
+            "* *rolls over dramatically* fine, fine... you win... belly rubs time...",
+            "* from now on, we share the house. deal?",
+            "* *purrs loudly* thanks for showing me that not all humans are terrible...",
+            "* now, where did you say those treats were? *hopeful meow*"
         ];
         
         // Attack names for display
@@ -249,11 +305,13 @@
             keys[e.key.toLowerCase()] = true;
             
             // SPACE only works for dialogue and intro
-            if ((gameState === 'intro' || gameState === 'dialogue') && e.code === 'Space') {
+            if ((gameState === 'intro' || gameState === 'dialogue' || gameState === 'ending') && e.code === 'Space') {
                 if (gameState === 'intro') {
                     startGame();
                 } else if (gameState === 'dialogue') {
                     nextDialogue();
+                } else if (gameState === 'ending') {
+                    nextEndingDialogue();
                 }
                 e.preventDefault();
             } 
@@ -262,15 +320,15 @@
                 selectMenuItem();
                 e.preventDefault();
             }
-            // Arrow keys for menu navigation only
+            // Arrow keys and WASD for menu navigation
             else if (gameState === 'menu') {
-                if (e.key === 'ArrowLeft' || e.key === 'a') {
+                if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'ArrowUp' || e.key === 'w') {
                     if (selectedMenuItem > 0) {
                         selectedMenuItem--;
                         updateMenuSelection();
                     }
                     e.preventDefault();
-                } else if (e.key === 'ArrowRight' || e.key === 'd') {
+                } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'ArrowDown' || e.key === 's') {
                     if (selectedMenuItem < 3) {
                         selectedMenuItem++;
                         updateMenuSelection();
@@ -321,7 +379,7 @@
                 case 'fight':
                     const damage = Math.floor(Math.random() * 15) + 10;
                     boss.hp = Math.max(0, boss.hp - damage);
-                    dialogueMessage = `* You scratch Whiskers for ${damage} damage! They look annoyed but impressed.`;
+                    dialogueMessage = `* You scratch Cans for ${damage} damage! They look annoyed but impressed.`;
                     boss.mood = 'annoyed';
                     break;
                 case 'act':
@@ -334,11 +392,11 @@
                     break;
                 case 'mercy':
                     if (boss.hp < 30 || boss.mood === 'friendly') {
-                        dialogueMessage = "* Whiskers accepts your mercy. They curl up and start purring. You win!";
-                        gameState = 'win';
+                        dialogueMessage = "* Cans accepts your mercy. They curl up and start purring.";
+                        startEnding();
                         shouldContinue = false;
                     } else {
-                        dialogueMessage = "* Whiskers is not ready to forgive your trespassing yet. *hisses*";
+                        dialogueMessage = "* Cans is not ready to forgive your trespassing yet. *hisses*";
                     }
                     break;
             }
@@ -347,16 +405,15 @@
             
             // Check win condition
             if (boss.hp <= 0) {
-                gameState = 'win';
-                dialogueMessage = "* Whiskers has been defeated! They flop over dramatically and demand belly rubs.";
+                startEnding();
                 shouldContinue = false;
             }
             
             // Show result dialogue
-            showDialogue(dialogueMessage);
-            
-            // If game continues, prepare for next turn
-            if (shouldContinue && gameState !== 'win') {
+            if (shouldContinue) {
+                showDialogue(dialogueMessage);
+                
+                // If game continues, prepare for next turn
                 setTimeout(() => {
                     if (gameState === 'dialogue') {
                         // This will be handled by nextDialogue when user presses space
@@ -367,10 +424,10 @@
         
         function handleActMenu() {
             const actOptions = [
-                { text: "* You try to pet Whiskers. They purr but remain alert.", mood: 'neutral' },
-                { text: "* You make pspsps sounds. Whiskers looks confused but intrigued.", mood: 'curious' },
-                { text: "* You pretend to ignore Whiskers. They immediately want attention.", mood: 'attention-seeking' },
-                { text: "* You point at a random spot. Whiskers looks where you're pointing.", mood: 'distracted' }
+                { text: "* You try to pet Cans. They purr but remain alert.", mood: 'neutral' },
+                { text: "* You make pspsps sounds. Cans looks confused but intrigued.", mood: 'curious' },
+                { text: "* You pretend to ignore Cans. They immediately want attention.", mood: 'attention-seeking' },
+                { text: "* You point at a random spot. Cans looks where you're pointing.", mood: 'distracted' }
             ];
             
             return actOptions[Math.floor(Math.random() * actOptions.length)];
@@ -381,14 +438,52 @@
                 playerItems.treats--;
                 player.hp = Math.min(player.maxHP, player.hp + 8);
                 boss.mood = 'friendly';
-                return "* You offer Whiskers some treats. They grudgingly accept and seem less hostile.";
+                return "* You offer Cans some treats. They grudgingly accept and seem less hostile.";
             } else if (playerItems.catnip > 0) {
                 playerItems.catnip--;
                 player.statusEffects.catnip = 120; // 2 seconds of effect
                 boss.mood = 'confused';
-                return "* You scatter catnip around. Whiskers becomes entranced, and you feel dizzy too!";
+                return "* You scatter catnip around. Cans becomes entranced, and you feel dizzy too!";
             } else {
                 return "* You have no items left! Maybe you should have brought more treats...";
+            }
+        }
+
+        function startEnding() {
+            gameState = 'death_animation';
+            boss.deathTimer = 0;
+            attacks = []; // Clear all attacks
+            particles = []; // Clear all particles
+            
+            // Hide UI elements
+            menu.style.display = 'none';
+            menuInstructions.style.display = 'none';
+            attackInfo.style.display = 'none';
+            
+            // Start death animation
+            setTimeout(() => {
+                gameState = 'ending';
+                endingDialogueIndex = 0;
+                showEndingDialogue();
+            }, 3000); // 3 seconds of death animation
+        }
+
+        function showEndingDialogue() {
+            gameState = 'ending';
+            dialogue.style.display = 'block';
+            dialogueText.textContent = endingDialogues[endingDialogueIndex];
+        }
+
+        function nextEndingDialogue() {
+            endingDialogueIndex++;
+            if (endingDialogueIndex < endingDialogues.length) {
+                dialogueText.textContent = endingDialogues[endingDialogueIndex];
+            } else {
+                // End of dialogue, show victory
+                dialogue.style.display = 'none';
+                endingOverlay.style.display = 'block';
+                victoryText.style.display = 'block';
+                gameState = 'win';
             }
         }
         
@@ -407,7 +502,7 @@
         }
         
         function nextDialogue() {
-            if (gameState === 'win' || gameState === 'gameover') return;
+            if (gameState === 'win' || gameState === 'gameover' || gameState === 'ending') return;
             
             dialogue.style.display = 'none';
             
@@ -452,14 +547,6 @@
             selectedMenuItem = 0;
             updateMenuSelection();
             turnCounter++;
-            
-            // Show boss dialogue after a short delay, but only if still in menu
-            setTimeout(() => {
-                if (gameState === 'menu' && turnCounter < bossDialogues.length) {
-                    // Don't auto-advance, let user finish their action first
-                    // The dialogue will be shown after their next action
-                }
-            }, 500);
         }
         
         function updateStats() {
@@ -772,8 +859,51 @@
                 // Check collisions
                 checkCollisions();
             }
+
+            // Handle death animation
+            if (gameState === 'death_animation') {
+                updateDeathAnimation();
+            }
             
             requestAnimationFrame(gameLoop);
+        }
+
+        function updateDeathAnimation() {
+            boss.deathTimer++;
+            
+            // Fade out and scale down
+            boss.opacity = Math.max(0, 1 - boss.deathTimer / 180);
+            boss.scale = Math.max(0.3, 1 - boss.deathTimer / 300);
+            
+            // Create sparkle effects
+            if (boss.deathTimer % 10 === 0) {
+                boss.deathEffects.push({
+                    x: canvas.width / 2 + (Math.random() - 0.5) * 100,
+                    y: 100 + (Math.random() - 0.5) * 100,
+                    timer: 60,
+                    color: `hsl(${Math.random() * 360}, 100%, 70%)`
+                });
+            }
+            
+            // Update death effects
+            for (let i = boss.deathEffects.length - 1; i >= 0; i--) {
+                const effect = boss.deathEffects[i];
+                effect.timer--;
+                effect.y -= 2;
+                
+                if (effect.timer <= 0) {
+                    boss.deathEffects.splice(i, 1);
+                    continue;
+                }
+                
+                // Draw sparkle
+                ctx.fillStyle = effect.color;
+                ctx.globalAlpha = effect.timer / 60;
+                ctx.beginPath();
+                ctx.arc(effect.x, effect.y, 3, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1;
+            }
         }
         
         function generateRandomAttack() {
@@ -832,6 +962,13 @@
             const centerX = canvas.width / 2;
             const centerY = 100;
             const bodyOffset = Math.sin(Date.now() * 0.003) * 2;
+            
+            // Apply death animation effects
+            ctx.globalAlpha = boss.opacity;
+            ctx.save();
+            ctx.translate(centerX, centerY);
+            ctx.scale(boss.scale, boss.scale);
+            ctx.translate(-centerX, -centerY);
             
             // Cat body
             ctx.fillStyle = boss.mood === 'friendly' ? '#AAA' : '#888';
@@ -892,6 +1029,9 @@
                 ctx.lineTo(centerX - 45, centerY - 20);
                 ctx.stroke();
             }
+            
+            ctx.restore();
+            ctx.globalAlpha = 1;
         }
         
         function updatePlayer() {
@@ -1245,7 +1385,7 @@
             
             if (player.hp <= 0) {
                 gameState = 'gameover';
-                showDialogue("* You have been defeated by Whiskers! They sit on your keyboard triumphantly. GAME OVER");
+                showDialogue("* You have been defeated by Cans! They sit on your keyboard triumphantly. GAME OVER");
             }
         }
         
