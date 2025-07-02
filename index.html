@@ -430,6 +430,16 @@
             color: #000;
             transform: scale(1.1);
         }
+
+        .language-hint {
+            position: absolute;
+            bottom: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #888;
+            font-size: 12px;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -496,6 +506,7 @@
             <p id="instructLine3">Choose your actions wisely during battle!</p>
             <p style="color: #ff69b4;" id="instructLine4">Battle will be longer, but your choices will shape the music!</p>
             <p id="instructLine5">Press SPACE to continue</p>
+            <p class="language-hint" id="languageHint">Press SPACE or ENTER to change language</p>
         </div>
         
         <div class="menu-instructions" id="menuInstructions">
@@ -540,6 +551,11 @@
     </div>
 
     <script>
+        // Delta time for frame-rate independent movement
+        let lastTime = 0;
+        const targetFPS = 60;
+        const frameTime = 1000 / targetFPS;
+        
         // Language system
         let currentLanguage = 'en';
         
@@ -563,6 +579,7 @@
                 clickToPlay: 'CLICK TO PLAY',
                 seriousMode: '♪ SERIOUS MODE ♪',
                 rageModeActive: 'RAGE MODE ACTIVE!',
+                languageHint: 'Press SPACE or ENTER to change language',
                 
                 // Menu buttons
                 fight: 'FIGHT',
@@ -764,6 +781,7 @@
                 clickToPlay: '點擊播放',
                 seriousMode: '♪ 認真模式 ♪',
                 rageModeActive: '狂暴模式啟動！',
+                languageHint: '按空白鍵或 ENTER 切換語言',
                 
                 // Menu buttons
                 fight: '戰鬥',
@@ -982,6 +1000,7 @@
             document.getElementById('instructLine3').textContent = t('instructLine3');
             document.getElementById('instructLine4').textContent = t('instructLine4');
             document.getElementById('instructLine5').textContent = t('instructLine5');
+            document.getElementById('languageHint').textContent = t('languageHint');
             document.getElementById('menuInstructText').textContent = t('menuInstructText');
             document.getElementById('fightBtn').textContent = t('fight');
             document.getElementById('actBtn').textContent = t('act');
@@ -1626,7 +1645,7 @@
             dialogue.style.display = 'none';
             menu.style.display = 'none';
             menuInstructions.style.display = 'none';
-            attackInfo.style.display = 'block'; // Show attack info again
+            attackInfo.style.display = 'none'; // Hide attack info on restart
             attackTypeIndicator.style.display = 'none';
             rageModeIndicator.style.display = 'none';
             cutsceneOverlay.style.display = 'none';
@@ -1685,10 +1704,20 @@
         document.addEventListener('keydown', (e) => {
             keys[e.key.toLowerCase()] = true;
             
-            if ((gameState === 'intro' || gameState === 'dialogue' || gameState === 'ending') && e.code === 'Space') {
-                if (gameState === 'intro') {
+            // Toggle language with Space or Enter in intro screen
+            if (gameState === 'intro' && (e.code === 'Space' || e.code === 'Enter')) {
+                // If Space is pressed and Shift is not held, start the game
+                // If Enter is pressed or Space+Shift is pressed, toggle language
+                if (e.code === 'Space' && !e.shiftKey) {
                     startGame();
-                } else if (gameState === 'dialogue') {
+                } else {
+                    currentLanguage = currentLanguage === 'en' ? 'zh' : 'en';
+                    updateUILanguage();
+                }
+                e.preventDefault();
+            }
+            else if ((gameState === 'dialogue' || gameState === 'ending') && e.code === 'Space') {
+                if (gameState === 'dialogue') {
                     nextDialogue();
                 } else if (gameState === 'ending') {
                     nextEndingDialogue();
@@ -2018,6 +2047,7 @@
         function startGame() {
             instructions.style.display = 'none';
             gameState = 'dialogue';
+            attackInfo.style.display = 'block'; // Show attack info when game starts
             showDialogue(t('bossDialogues')[0]);
             startMusic();
         }
@@ -2679,67 +2709,77 @@
             });
         }
         
-        // Game loop
-        function gameLoop() {
-            // Clear and redraw canvas
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = '#000';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        // Game loop with delta time
+        function gameLoop(currentTime) {
+            if (!lastTime) lastTime = currentTime;
+            const deltaTime = currentTime - lastTime;
             
-            if (gameState === 'attack') {
-                ctx.strokeStyle = '#fff';
-                ctx.lineWidth = 3;
-                ctx.strokeRect(battleBox.x, battleBox.y, battleBox.width, battleBox.height);
-            }
-            
-            drawCatBoss();
-            
-            if (gameState === 'attack') {
-                updateStatusEffects();
-                updatePlayer();
+            // Only update if enough time has passed (frame limiting)
+            if (deltaTime >= frameTime) {
+                const delta = deltaTime / frameTime; // Scale factor for consistent speed
                 
-                // Update invincibility timer
-                if (player.invincibilityTimer > 0) {
-                    player.invincibilityTimer--;
+                // Clear and redraw canvas
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#000';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                if (gameState === 'attack') {
+                    ctx.strokeStyle = '#fff';
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(battleBox.x, battleBox.y, battleBox.width, battleBox.height);
                 }
                 
-                attackPhaseTimer++;
-                attackTimer++;
+                drawCatBoss();
                 
-                // Generate attacks based on boss phase and health
-                const attackFrequency = Math.max(20, 80 - boss.phase * 10 - (boss.enragedMode ? 20 : 0));
-                if (attackTimer % attackFrequency === 0) {
-                    generateRandomAttack();
+                if (gameState === 'attack') {
+                    updateStatusEffects();
+                    updatePlayer(delta);
+                    
+                    // Update invincibility timer
+                    if (player.invincibilityTimer > 0) {
+                        player.invincibilityTimer -= delta;
+                    }
+                    
+                    attackPhaseTimer += delta;
+                    attackTimer += delta;
+                    
+                    // Generate attacks based on boss phase and health
+                    const attackFrequency = Math.max(20, 80 - boss.phase * 10 - (boss.enragedMode ? 20 : 0));
+                    if (attackTimer % attackFrequency < delta) {
+                        generateRandomAttack();
+                    }
+                    
+                    updateAttacks(delta);
+                    updateParticles(delta);
+                    drawPlayer();
+                    checkCollisions();
+                    
+                    // Check for player death immediately
+                    if (player.hp <= 0 && gameState === 'attack') {
+                        handlePlayerDeath();
+                        return;
+                    }
                 }
-                
-                updateAttacks();
-                updateParticles();
-                drawPlayer();
-                checkCollisions();
-                
-                // Check for player death immediately
-                if (player.hp <= 0 && gameState === 'attack') {
-                    handlePlayerDeath();
-                    return;
-                }
-            }
 
-            if (gameState === 'death_animation') {
-                updateDeathAnimation();
-            }
+                if (gameState === 'death_animation') {
+                    updateDeathAnimation(delta);
+                }
 
-            if (gameState === 'player_death') {
-                updatePlayerDeathAnimation();
+                if (gameState === 'player_death') {
+                    updatePlayerDeathAnimation(delta);
+                }
+                
+                lastTime = currentTime;
             }
             
             gameLoopId = requestAnimationFrame(gameLoop);
         }
 
-        function updatePlayerDeathAnimation() {
-            playerDeathTimer++;
+        function updatePlayerDeathAnimation(delta) {
+            playerDeathTimer += delta;
             
             // Create death effects around player
-            if (playerDeathTimer % 15 === 0) {
+            if (playerDeathTimer % 15 < delta) {
                 particles.push({
                     type: 'playerDeath',
                     x: player.x + (Math.random() - 0.5) * 40,
@@ -2753,8 +2793,8 @@
             for (let i = particles.length - 1; i >= 0; i--) {
                 const particle = particles[i];
                 if (particle.type === 'playerDeath') {
-                    particle.timer--;
-                    particle.y -= 2;
+                    particle.timer -= delta;
+                    particle.y -= 2 * delta;
                     
                     if (particle.timer <= 0) {
                         particles.splice(i, 1);
@@ -2777,13 +2817,13 @@
             ctx.globalAlpha = 1;
         }
 
-        function updateDeathAnimation() {
-            boss.deathTimer++;
+        function updateDeathAnimation(delta) {
+            boss.deathTimer += delta;
             
             boss.opacity = Math.max(0, 1 - boss.deathTimer / 180);
             boss.scale = Math.max(0.3, 1 - boss.deathTimer / 300);
             
-            if (boss.deathTimer % 10 === 0) {
+            if (boss.deathTimer % 10 < delta) {
                 boss.deathEffects.push({
                     x: canvas.width / 2 + (Math.random() - 0.5) * 100,
                     y: 100 + (Math.random() - 0.5) * 100,
@@ -2794,8 +2834,8 @@
             
             for (let i = boss.deathEffects.length - 1; i >= 0; i--) {
                 const effect = boss.deathEffects[i];
-                effect.timer--;
-                effect.y -= 2;
+                effect.timer -= delta;
+                effect.y -= 2 * delta;
                 
                 if (effect.timer <= 0) {
                     boss.deathEffects.splice(i, 1);
@@ -2932,18 +2972,18 @@
             ctx.globalAlpha = 1;
         }
         
-        function updatePlayer() {
+        function updatePlayer(delta) {
             // Track if player is moving for blue/orange attacks
             player.isMoving = (player.x !== player.lastPosition.x || player.y !== player.lastPosition.y);
             player.lastPosition = { x: player.x, y: player.y };
             
-            let speed = 3;
+            let speed = 3 * delta;
             
             if (player.statusEffects.catnip > 0) {
-                speed = 1.5;
+                speed = 1.5 * delta;
             }
             if (player.statusEffects.sleepy > 0) {
-                speed = 2;
+                speed = 2 * delta;
             }
             
             let moveX = 0, moveY = 0;
@@ -3007,14 +3047,14 @@
             }
         }
         
-        function updateAttacks() {
+        function updateAttacks(delta) {
             for (let i = attacks.length - 1; i >= 0; i--) {
                 const attack = attacks[i];
                 
                 switch(attack.type) {
                     case 'yarnball':
-                        attack.x += attack.dx;
-                        attack.y += attack.dy;
+                        attack.x += attack.dx * delta;
+                        attack.y += attack.dy * delta;
                         if (attack.x <= battleBox.x || attack.x >= battleBox.x + battleBox.width) {
                             attack.dx *= -1;
                             attack.bounces--;
@@ -3027,24 +3067,24 @@
                         
                     case 'mouse':
                         const angle = Math.atan2(attack.targetY - attack.y, attack.targetX - attack.x);
-                        attack.x += Math.cos(angle) * attack.speed;
-                        attack.y += Math.sin(angle) * attack.speed;
+                        attack.x += Math.cos(angle) * attack.speed * delta;
+                        attack.y += Math.sin(angle) * attack.speed * delta;
                         break;
 
                     case 'megalovania':
                         if (attack.targetX !== undefined) {
                             const angle = Math.atan2(attack.targetY - attack.y, attack.targetX - attack.x);
-                            attack.x += Math.cos(angle) * attack.speed;
-                            attack.y += Math.sin(angle) * attack.speed;
+                            attack.x += Math.cos(angle) * attack.speed * delta;
+                            attack.y += Math.sin(angle) * attack.speed * delta;
                         } else {
-                            attack.x += attack.dx || 0;
-                            attack.y += attack.dy || 0;
+                            attack.x += (attack.dx || 0) * delta;
+                            attack.y += (attack.dy || 0) * delta;
                         }
                         break;
 
                     case 'determination':
-                        attack.x += attack.dx;
-                        attack.y += attack.dy;
+                        attack.x += attack.dx * delta;
+                        attack.y += attack.dy * delta;
                         if (attack.trail) {
                             attack.trail.push({x: attack.x, y: attack.y});
                             if (attack.trail.length > 5) {
@@ -3055,10 +3095,10 @@
 
                     case 'mercyHealing':
                     case 'emergencyTreats':
-                        attack.x += attack.dx;
-                        attack.y += attack.dy;
+                        attack.x += attack.dx * delta;
+                        attack.y += attack.dy * delta;
                         if (attack.timer) {
-                            attack.timer--;
+                            attack.timer -= delta;
                             if (attack.timer <= 0) {
                                 attacks.splice(i, 1);
                                 continue;
@@ -3067,14 +3107,14 @@
                         break;
                         
                     case 'string':
-                        attack.x += attack.dx;
-                        attack.y += attack.dy + Math.sin(Date.now() * 0.01 + attack.waveOffset) * 2;
+                        attack.x += attack.dx * delta;
+                        attack.y += attack.dy * delta + Math.sin(Date.now() * 0.01 + attack.waveOffset) * 2;
                         break;
                         
                     case 'zoomies':
                     case 'orangeZoomies':
-                        attack.x += attack.dx;
-                        attack.y += attack.dy;
+                        attack.x += attack.dx * delta;
+                        attack.y += attack.dy * delta;
                         if (attack.trail) {
                             attack.trail.push({x: attack.x, y: attack.y});
                             if (attack.trail.length > 8) {
@@ -3084,14 +3124,14 @@
                         break;
                         
                     case 'blueBones':
-                        attack.x += attack.dx;
-                        attack.y += attack.dy;
+                        attack.x += attack.dx * delta;
+                        attack.y += attack.dy * delta;
                         break;
                         
                     case 'catnip':
-                        attack.timer--;
-                        attack.x += attack.dx;
-                        attack.y += attack.dy;
+                        attack.timer -= delta;
+                        attack.x += attack.dx * delta;
+                        attack.y += attack.dy * delta;
                         if (attack.timer <= 0) {
                             attacks.splice(i, 1);
                             continue;
@@ -3101,7 +3141,7 @@
                     case 'cardboard':
                     case 'hiding':
                     case 'litter':
-                        attack.timer--;
+                        attack.timer -= delta;
                         if (attack.timer <= 0) {
                             attacks.splice(i, 1);
                             continue;
@@ -3110,7 +3150,7 @@
                         
                     case 'pawswipe':
                     case 'enragedSwipe':
-                        attack.timer--;
+                        attack.timer -= delta;
                         if (attack.timer <= 0) {
                             attacks.splice(i, 1);
                             continue;
@@ -3118,8 +3158,8 @@
                         break;
                         
                     case 'laser':
-                        attack.x += attack.dx;
-                        attack.y += attack.dy;
+                        attack.x += attack.dx * delta;
+                        attack.y += attack.dy * delta;
                         if (attack.trail) {
                             attack.trail.push({x: attack.x, y: attack.y});
                             if (attack.trail.length > 10) {
@@ -3129,8 +3169,8 @@
                         break;
                         
                     default:
-                        attack.x += attack.dx;
-                        attack.y += attack.dy;
+                        attack.x += attack.dx * delta;
+                        attack.y += attack.dy * delta;
                 }
                 
                 if (!['cardboard', 'hiding', 'litter', 'pawswipe', 'enragedSwipe'].includes(attack.type)) {
@@ -3341,10 +3381,10 @@
             }
         }
         
-        function updateParticles() {
+        function updateParticles(delta) {
             for (let i = particles.length - 1; i >= 0; i--) {
                 const particle = particles[i];
-                particle.timer--;
+                particle.timer -= delta;
                 
                 if (particle.timer <= 0) {
                     particles.splice(i, 1);
@@ -3361,9 +3401,9 @@
                     }
                 } else if (particle.type === 'destruction') {
                     // Update destruction particles
-                    particle.x += particle.dx;
-                    particle.y += particle.dy;
-                    particle.dy += 0.3; // gravity
+                    particle.x += particle.dx * delta;
+                    particle.y += particle.dy * delta;
+                    particle.dy += 0.3 * delta; // gravity
                     
                     ctx.fillStyle = particle.color;
                     ctx.globalAlpha = particle.timer / 120;
