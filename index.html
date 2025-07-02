@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Whiskers - The Ultimate Cat Boss Fight</title>
+    <title>Whiskers - The Ultimate Cat Boss Fight Enhanced</title>
     <style>
         body {
             margin: 0;
@@ -57,6 +57,7 @@
             left: 50%;
             transform: translateX(-50%);
             display: none;
+            z-index: 10;
         }
         
         .menu-button {
@@ -69,6 +70,7 @@
             cursor: pointer;
             font-family: 'Courier New', monospace;
             font-size: 14px;
+            user-select: none;
         }
         
         .menu-button:hover, .menu-button.selected {
@@ -82,6 +84,16 @@
             left: 10px;
             color: #fff;
             font-size: 14px;
+            z-index: 5;
+        }
+        
+        .attack-info {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            color: #fff;
+            font-size: 12px;
+            z-index: 5;
         }
         
         #instructions {
@@ -99,6 +111,15 @@
             opacity: 0;
             transition: opacity 2s;
         }
+        
+        .status-effect {
+            position: absolute;
+            top: 80px;
+            left: 10px;
+            color: #ff69b4;
+            font-size: 12px;
+            z-index: 5;
+        }
     </style>
 </head>
 <body>
@@ -110,9 +131,17 @@
             <div>Whiskers HP: <span id="bossHP">100</span>/100</div>
         </div>
         
+        <div class="attack-info" id="attackInfo">
+            <div>Phase: <span id="currentPhase">1</span></div>
+            <div>Attack: <span id="currentAttack">Preparing...</span></div>
+        </div>
+        
+        <div class="status-effect" id="statusEffect"></div>
+        
         <div id="instructions">
             <h2>🐱 WHISKERS - THE ULTIMATE CAT 🐱</h2>
             <p>Use ARROW KEYS or WASD to move your heart and dodge attacks!</p>
+            <p>Choose your actions wisely during battle!</p>
             <p>Press SPACE to continue</p>
         </div>
         
@@ -137,33 +166,63 @@
         const instructions = document.getElementById('instructions');
         const playerHPSpan = document.getElementById('playerHP');
         const bossHPSpan = document.getElementById('bossHP');
+        const attackInfo = document.getElementById('attackInfo');
+        const currentPhaseSpan = document.getElementById('currentPhase');
+        const currentAttackSpan = document.getElementById('currentAttack');
+        const statusEffect = document.getElementById('statusEffect');
         
         // Game state
-        let gameState = 'intro'; // intro, menu, attack, dialogue
-        let player = { x: 400, y: 300, size: 8, hp: 20, maxHP: 20 };
-        let boss = { hp: 100, maxHP: 100, phase: 0 };
+        let gameState = 'intro'; // intro, menu, attack, dialogue, win, gameover
+        let player = { 
+            x: 400, 
+            y: 300, 
+            size: 8, 
+            hp: 20, 
+            maxHP: 20,
+            statusEffects: {} // catnip, sleepy, etc
+        };
+        let boss = { hp: 100, maxHP: 100, phase: 0, mood: 'aggressive' };
         let attacks = [];
         let particles = [];
         let keys = {};
         let selectedMenuItem = 0;
         let battleBox = { x: 150, y: 200, width: 500, height: 200 };
         let attackTimer = 0;
-        let dialogues = [];
-        let currentDialogue = 0;
+        let currentAttackType = '';
         let turnCounter = 0;
+        let playerItems = { treats: 3, catnip: 1 };
         
-        // Cat boss dialogues
+        // Enhanced cat boss dialogues
         const bossDialogues = [
             "* Whiskers appears, fur bristling with determination!",
             "* mrow... you think you can defeat me, human?",
-            "* i've knocked things off tables for YEARS...",
-            "* time to show you my true power... *stretches*",
-            "* purrpare yourself for the ultimate cat attack!",
-            "* *yawn* this is getting boring... maybe i'll nap instead",
-            "* wait... do you have... TREATS?!",
-            "* fine, fine... you're not so bad for a human",
-            "* *purrs* maybe we can be friends after all..."
+            "* i've been practicing my zoomies... prepare yourself!",
+            "* time to show you what happens when you disturb my nap...",
+            "* *stretches and yawns* this better be worth my time",
+            "* wait... do i smell... CATNIP?! *eyes dilate*",
+            "* *sniff sniff* you wouldn't happen to have treats, would you?",
+            "* fine, fine... you're alright for a human i suppose",
+            "* *purrs reluctantly* maybe we can share the sunny spot on the carpet"
         ];
+        
+        // Attack names for display
+        const attackNames = {
+            'yarnball': 'Yarn Ball Barrage',
+            'fishbone': 'Flying Fishbones',
+            'pawswipe': 'Mighty Paw Swipe',
+            'laser': 'Red Dot Madness',
+            'catnip': 'Catnip Cloud',
+            'zoomies': 'Midnight Zoomies',
+            'mouse': 'Toy Mouse Hunt',
+            'treats': 'Treat Shower',
+            'cardboard': 'Cardboard Fortress',
+            'string': 'String Theory',
+            'hairball': 'Hairball Surprise',
+            'nap': 'Cat Nap Time',
+            'scratching': 'Scratching Post Fury',
+            'hiding': 'Under Furniture',
+            'litter': 'Litter Box Revenge'
+        };
         
         // Input handling
         document.addEventListener('keydown', (e) => {
@@ -171,10 +230,13 @@
             
             if (gameState === 'intro' && e.code === 'Space') {
                 startGame();
+                e.preventDefault();
             } else if (gameState === 'menu') {
                 handleMenuInput(e);
+                e.preventDefault();
             } else if (gameState === 'dialogue' && e.code === 'Space') {
                 nextDialogue();
+                e.preventDefault();
             }
         });
         
@@ -184,17 +246,20 @@
         
         // Menu handling
         document.querySelectorAll('.menu-button').forEach((button, index) => {
-            button.addEventListener('click', () => {
-                selectedMenuItem = index;
-                selectMenuItem();
+            button.addEventListener('click', (e) => {
+                if (gameState === 'menu') {
+                    selectedMenuItem = index;
+                    selectMenuItem();
+                }
+                e.preventDefault();
             });
         });
         
         function handleMenuInput(e) {
-            if (e.key === 'ArrowLeft' && selectedMenuItem > 0) {
+            if ((e.key === 'ArrowLeft' || e.key === 'a') && selectedMenuItem > 0) {
                 selectedMenuItem--;
                 updateMenuSelection();
-            } else if (e.key === 'ArrowRight' && selectedMenuItem < 3) {
+            } else if ((e.key === 'ArrowRight' || e.key === 'd') && selectedMenuItem < 3) {
                 selectedMenuItem++;
                 updateMenuSelection();
             } else if (e.code === 'Space' || e.key === 'Enter') {
@@ -217,25 +282,21 @@
                 case 'fight':
                     const damage = Math.floor(Math.random() * 15) + 10;
                     boss.hp = Math.max(0, boss.hp - damage);
-                    showDialogue(`* You scratch Whiskers for ${damage} damage!`);
+                    showDialogue(`* You scratch Whiskers for ${damage} damage! They look annoyed but impressed.`);
+                    boss.mood = 'annoyed';
                     break;
                 case 'act':
-                    showDialogue("* You try to pet Whiskers. They seem confused but pleased.");
+                    handleActMenu();
                     break;
                 case 'item':
-                    if (player.hp < player.maxHP) {
-                        player.hp = Math.min(player.maxHP, player.hp + 5);
-                        showDialogue("* You eat some cat treats. HP restored!");
-                    } else {
-                        showDialogue("* You're already at full HP!");
-                    }
+                    handleItemMenu();
                     break;
                 case 'mercy':
-                    if (boss.hp < 30) {
-                        showDialogue("* Whiskers accepts your mercy. You win!");
+                    if (boss.hp < 30 || boss.mood === 'friendly') {
+                        showDialogue("* Whiskers accepts your mercy. They curl up and start purring. You win!");
                         gameState = 'win';
                     } else {
-                        showDialogue("* Whiskers is not ready to forgive your trespassing yet.");
+                        showDialogue("* Whiskers is not ready to forgive your trespassing yet. *hisses*");
                     }
                     break;
             }
@@ -243,7 +304,36 @@
             updateStats();
             if (boss.hp <= 0) {
                 gameState = 'win';
-                showDialogue("* Whiskers has been defeated! They curl up for a nap.");
+                showDialogue("* Whiskers has been defeated! They flop over dramatically and demand belly rubs.");
+            }
+        }
+        
+        function handleActMenu() {
+            const actOptions = [
+                { text: "* You try to pet Whiskers. They purr but remain alert.", mood: 'neutral' },
+                { text: "* You make pspsps sounds. Whiskers looks confused but intrigued.", mood: 'curious' },
+                { text: "* You pretend to ignore Whiskers. They immediately want attention.", mood: 'attention-seeking' },
+                { text: "* You point at a random spot. Whiskers looks where you're pointing.", mood: 'distracted' }
+            ];
+            
+            const randomAct = actOptions[Math.floor(Math.random() * actOptions.length)];
+            boss.mood = randomAct.mood;
+            showDialogue(randomAct.text);
+        }
+        
+        function handleItemMenu() {
+            if (playerItems.treats > 0) {
+                playerItems.treats--;
+                player.hp = Math.min(player.maxHP, player.hp + 8);
+                boss.mood = 'friendly';
+                showDialogue("* You offer Whiskers some treats. They grudgingly accept and seem less hostile.");
+            } else if (playerItems.catnip > 0) {
+                playerItems.catnip--;
+                player.statusEffects.catnip = 120; // 2 seconds of effect
+                boss.mood = 'confused';
+                showDialogue("* You scatter catnip around. Whiskers becomes entranced, and you feel dizzy too!");
+            } else {
+                showDialogue("* You have no items left! Maybe you should have brought more treats...");
             }
         }
         
@@ -261,7 +351,7 @@
         }
         
         function nextDialogue() {
-            if (gameState === 'win') return;
+            if (gameState === 'win' || gameState === 'gameover') return;
             
             dialogue.style.display = 'none';
             if (boss.hp <= 0) return;
@@ -279,15 +369,19 @@
             player.x = battleBox.x + battleBox.width / 2;
             player.y = battleBox.y + battleBox.height / 2;
             
-            // Start attack pattern based on boss phase
-            boss.phase = Math.floor((boss.maxHP - boss.hp) / 20);
+            // Calculate boss phase
+            boss.phase = Math.floor((boss.maxHP - boss.hp) / 20) + 1;
+            currentPhaseSpan.textContent = boss.phase;
+            
             setTimeout(() => {
                 endAttackPhase();
-            }, 4000); // 4 seconds of attacks
+            }, 5000); // 5 seconds of attacks
         }
         
         function endAttackPhase() {
             attacks = [];
+            particles = [];
+            currentAttackSpan.textContent = 'Preparing...';
             gameState = 'menu';
             menu.style.display = 'block';
             selectedMenuItem = 0;
@@ -305,19 +399,30 @@
         function updateStats() {
             playerHPSpan.textContent = player.hp;
             bossHPSpan.textContent = boss.hp;
+            
+            // Update status effects display
+            let statusText = '';
+            if (player.statusEffects.catnip > 0) {
+                statusText += 'Catnip High! ';
+            }
+            if (player.statusEffects.sleepy > 0) {
+                statusText += 'Sleepy... ';
+            }
+            statusEffect.textContent = statusText;
         }
         
-        // Attack patterns
+        // Enhanced Attack patterns
         function createYarnBallAttack() {
-            for (let i = 0; i < 3; i++) {
+            for (let i = 0; i < 4; i++) {
                 attacks.push({
                     type: 'yarnball',
                     x: Math.random() * battleBox.width + battleBox.x,
                     y: battleBox.y - 20,
-                    dx: (Math.random() - 0.5) * 2,
+                    dx: (Math.random() - 0.5) * 3,
                     dy: 2 + Math.random() * 2,
                     size: 12,
-                    color: '#ff69b4'
+                    color: '#ff69b4',
+                    bounces: 2
                 });
             }
         }
@@ -326,14 +431,14 @@
             const side = Math.random() < 0.5 ? 'left' : 'right';
             const startX = side === 'left' ? battleBox.x - 20 : battleBox.x + battleBox.width + 20;
             
-            for (let i = 0; i < 5; i++) {
+            for (let i = 0; i < 6; i++) {
                 attacks.push({
                     type: 'fishbone',
                     x: startX,
-                    y: battleBox.y + i * 40 + 20,
-                    dx: side === 'left' ? 3 : -3,
+                    y: battleBox.y + i * 30 + 20,
+                    dx: side === 'left' ? 4 : -4,
                     dy: 0,
-                    size: 8,
+                    size: 10,
                     color: '#ffd700'
                 });
             }
@@ -348,21 +453,21 @@
                 type: 'warning',
                 x: targetX,
                 y: targetY,
-                timer: 60,
-                size: 30,
+                timer: 80,
+                size: 40,
                 color: '#ff0000'
             });
             
             setTimeout(() => {
                 attacks.push({
                     type: 'pawswipe',
-                    x: targetX - 25,
-                    y: targetY - 25,
-                    size: 50,
-                    timer: 30,
+                    x: targetX - 30,
+                    y: targetY - 30,
+                    size: 60,
+                    timer: 40,
                     color: '#8b4513'
                 });
-            }, 1000);
+            }, 1300);
         }
         
         function createLaserPointerAttack() {
@@ -373,11 +478,190 @@
                 type: 'laser',
                 x: battleBox.x + battleBox.width/2,
                 y: battleBox.y + battleBox.height/2,
-                dx: Math.cos(angle) * 4,
-                dy: Math.sin(angle) * 4,
-                size: 6,
+                dx: Math.cos(angle) * 5,
+                dy: Math.sin(angle) * 5,
+                size: 8,
                 color: '#ff0000',
                 trail: []
+            });
+        }
+        
+        // NEW ATTACK PATTERNS
+        function createCatnipCloudAttack() {
+            for (let i = 0; i < 20; i++) {
+                attacks.push({
+                    type: 'catnip',
+                    x: battleBox.x + Math.random() * battleBox.width,
+                    y: battleBox.y + Math.random() * battleBox.height,
+                    dx: (Math.random() - 0.5) * 1,
+                    dy: (Math.random() - 0.5) * 1,
+                    size: 6,
+                    color: '#90EE90',
+                    timer: 180
+                });
+            }
+        }
+        
+        function createZoomiesAttack() {
+            for (let i = 0; i < 8; i++) {
+                const angle = (i / 8) * Math.PI * 2;
+                attacks.push({
+                    type: 'zoomies',
+                    x: battleBox.x + battleBox.width/2,
+                    y: battleBox.y + battleBox.height/2,
+                    dx: Math.cos(angle) * 6,
+                    dy: Math.sin(angle) * 6,
+                    size: 15,
+                    color: '#FFB6C1',
+                    trail: []
+                });
+            }
+        }
+        
+        function createMouseToyAttack() {
+            for (let i = 0; i < 3; i++) {
+                const targetX = player.x + (Math.random() - 0.5) * 100;
+                const targetY = player.y + (Math.random() - 0.5) * 100;
+                
+                attacks.push({
+                    type: 'mouse',
+                    x: battleBox.x + Math.random() * battleBox.width,
+                    y: battleBox.y + Math.random() * battleBox.height,
+                    targetX: targetX,
+                    targetY: targetY,
+                    size: 8,   
+                    color: '#8B4513',
+                    speed: 2
+                });
+            }
+        }
+        
+        function createTreatShowerAttack() {
+            for (let i = 0; i < 15; i++) {
+                attacks.push({
+                    type: 'treats',
+                    x: battleBox.x + Math.random() * battleBox.width,
+                    y: battleBox.y - 10,
+                    dx: (Math.random() - 0.5) * 2,
+                    dy: 1 + Math.random() * 3,
+                    size: 5,
+                    color: '#D2691E'
+                });
+            }
+        }
+        
+        function createCardboardBoxAttack() {
+            const boxX = battleBox.x + Math.random() * (battleBox.width - 60);
+            const boxY = battleBox.y + Math.random() * (battleBox.height - 60);
+            
+            attacks.push({
+                type: 'cardboard',
+                x: boxX,
+                y: boxY,
+                size: 60,
+                color: '#DEB887',
+                timer: 120,
+                phase: 0
+            });
+        }
+        
+        function createStringAttack() {
+            const startX = battleBox.x;
+            const startY = battleBox.y + battleBox.height/2;
+            
+            for (let i = 0; i < 10; i++) {
+                attacks.push({
+                    type: 'string',
+                    x: startX + i * 50,
+                    y: startY,
+                    dx: 2,
+                    dy: Math.sin(i * 0.5) * 2,
+                    size: 4,
+                    color: '#FF1493',
+                    waveOffset: i * 0.5
+                });
+            }
+        }
+        
+        function createHairballAttack() {
+            // Warning first
+            particles.push({
+                type: 'warning',
+                x: battleBox.x + battleBox.width/2,
+                y: battleBox.y + 50,
+                timer: 60,
+                size: 50,
+                color: '#ff0000'
+            });
+            
+            setTimeout(() => {
+                attacks.push({
+                    type: 'hairball',
+                    x: battleBox.x + battleBox.width/2,
+                    y: battleBox.y,
+                    dx: 0,
+                    dy: 3,
+                    size: 25,
+                    color: '#8B4513'
+                });
+            }, 1000);
+        }
+        
+        function createNapAttack() {
+            player.statusEffects.sleepy = 120;
+            currentAttackSpan.textContent = 'Cat Nap Time (You feel sleepy...)';
+        }
+        
+        function createScratchingPostAttack() {
+            for (let i = 0; i < 5; i++) {
+                attacks.push({
+                    type: 'scratching',
+                    x: battleBox.x + i * 100 + 50,
+                    y: battleBox.y,
+                    dx: 0,
+                    dy: 4,
+                    size: 8,
+                    color: '#8B4513',
+                    length: battleBox.height
+                });
+            }
+        }
+        
+        function createHidingAttack() {
+            // Create shadow under furniture
+            for (let i = 0; i < 3; i++) {
+                const shadowX = battleBox.x + Math.random() * (battleBox.width - 80);
+                const shadowY = battleBox.y + Math.random() * (battleBox.height - 20);
+                
+                attacks.push({
+                    type: 'hiding',
+                    x: shadowX,
+                    y: shadowY,
+                    size: 80,
+                    color: '#333333',
+                    timer: 150,
+                    phase: 0
+                });
+            }
+        }
+        
+        function createLitterBoxAttack() {
+            const corners = [
+                {x: battleBox.x, y: battleBox.y},
+                {x: battleBox.x + battleBox.width - 40, y: battleBox.y},
+                {x: battleBox.x, y: battleBox.y + battleBox.height - 40},
+                {x: battleBox.x + battleBox.width - 40, y: battleBox.y + battleBox.height - 40}
+            ];
+            
+            corners.forEach(corner => {
+                attacks.push({
+                    type: 'litter',
+                    x: corner.x,
+                    y: corner.y,
+                    size: 40,
+                    color: '#D2B48C',
+                    timer: 200
+                });
             });
         }
         
@@ -398,19 +682,16 @@
             drawCatBoss();
             
             if (gameState === 'attack') {
+                // Update status effects
+                updateStatusEffects();
+                
                 // Update player
                 updatePlayer();
                 
                 // Generate attacks
                 attackTimer++;
-                if (attackTimer % 90 === 0) { // Every 1.5 seconds
-                    const attackType = Math.floor(Math.random() * 4);
-                    switch(attackType) {
-                        case 0: createYarnBallAttack(); break;
-                        case 1: createFishBoneAttack(); break;
-                        case 2: createPawSwipeAttack(); break;
-                        case 3: createLaserPointerAttack(); break;
-                    }
+                if (attackTimer % 60 === 0) { // Every second
+                    generateRandomAttack();
                 }
                 
                 // Update attacks
@@ -429,68 +710,171 @@
             requestAnimationFrame(gameLoop);
         }
         
+        function generateRandomAttack() {
+            const attackTypes = [
+                'yarnball', 'fishbone', 'pawswipe', 'laser', 'catnip', 'zoomies',
+                'mouse', 'treats', 'cardboard', 'string', 'hairball', 'nap',
+                'scratching', 'hiding', 'litter'
+            ];
+            
+            // Boss mood affects attack selection
+            let weightedAttacks = [...attackTypes];
+            if (boss.mood === 'friendly') {
+                weightedAttacks = ['treats', 'catnip', 'nap', 'mouse'];
+            } else if (boss.mood === 'annoyed') {
+                weightedAttacks = ['pawswipe', 'scratching', 'litter', 'hairball'];
+            }
+            
+            const attackType = weightedAttacks[Math.floor(Math.random() * weightedAttacks.length)];
+            currentAttackType = attackType;
+            currentAttackSpan.textContent = attackNames[attackType] || attackType;
+            
+            switch(attackType) {
+                case 'yarnball': createYarnBallAttack(); break;
+                case 'fishbone': createFishBoneAttack(); break;
+                case 'pawswipe': createPawSwipeAttack(); break;
+                case 'laser': createLaserPointerAttack(); break;
+                case 'catnip': createCatnipCloudAttack(); break;
+                case 'zoomies': createZoomiesAttack(); break;
+                case 'mouse': createMouseToyAttack(); break;
+                case 'treats': createTreatShowerAttack(); break;
+                case 'cardboard': createCardboardBoxAttack(); break;
+                case 'string': createStringAttack(); break;
+                case 'hairball': createHairballAttack(); break;
+                case 'nap': createNapAttack(); break;
+                case 'scratching': createScratchingPostAttack(); break;
+                case 'hiding': createHidingAttack(); break;
+                case 'litter': createLitterBoxAttack(); break;
+            }
+        }
+        
+        function updateStatusEffects() {
+            // Update catnip effect
+            if (player.statusEffects.catnip > 0) {
+                player.statusEffects.catnip--;
+            }
+            
+            // Update sleepy effect
+            if (player.statusEffects.sleepy > 0) {
+                player.statusEffects.sleepy--;
+            }
+            
+            updateStats();
+        }
+        
         function drawCatBoss() {
             const centerX = canvas.width / 2;
             const centerY = 100;
+            const bodyOffset = Math.sin(Date.now() * 0.003) * 2;
             
             // Cat body
-            ctx.fillStyle = '#888';
-            ctx.fillRect(centerX - 40, centerY, 80, 60);
+            ctx.fillStyle = boss.mood === 'friendly' ? '#AAA' : '#888';
+            ctx.fillRect(centerX - 40, centerY + bodyOffset, 80, 60);
             
             // Cat head
-            ctx.fillStyle = '#888';
-            ctx.fillRect(centerX - 30, centerY - 40, 60, 40);
+            ctx.fillStyle = boss.mood === 'friendly' ? '#AAA' : '#888';
+            ctx.fillRect(centerX - 30, centerY - 40 + bodyOffset, 60, 40);
             
             // Cat ears
             ctx.fillStyle = '#666';
             ctx.beginPath();
-            ctx.moveTo(centerX - 25, centerY - 40);
-            ctx.lineTo(centerX - 15, centerY - 55);
-            ctx.lineTo(centerX - 5, centerY - 40);
+            ctx.moveTo(centerX - 25, centerY - 40 + bodyOffset);
+            ctx.lineTo(centerX - 15, centerY - 55 + bodyOffset);
+            ctx.lineTo(centerX - 5, centerY - 40 + bodyOffset);
             ctx.fill();
             
             ctx.beginPath();
-            ctx.moveTo(centerX + 5, centerY - 40);
-            ctx.lineTo(centerX + 15, centerY - 55);
-            ctx.lineTo(centerX + 25, centerY - 40);
+            ctx.moveTo(centerX + 5, centerY - 40 + bodyOffset);
+            ctx.lineTo(centerX + 15, centerY - 55 + bodyOffset);
+            ctx.lineTo(centerX + 25, centerY - 40 + bodyOffset);
             ctx.fill();
             
-            // Cat eyes
-            ctx.fillStyle = '#00ff00';
-            ctx.fillRect(centerX - 20, centerY - 30, 8, 8);
-            ctx.fillRect(centerX + 12, centerY - 30, 8, 8);
+            // Cat eyes (change based on mood)
+            const eyeColor = boss.mood === 'friendly' ? '#00ff00' : 
+                           boss.mood === 'annoyed' ? '#ff4500' : '#00ff00';
+            ctx.fillStyle = eyeColor;
+            ctx.fillRect(centerX - 20, centerY - 30 + bodyOffset, 8, 8);
+            ctx.fillRect(centerX + 12, centerY - 30 + bodyOffset, 8, 8);
             
             // Cat pupils
             ctx.fillStyle = '#000';
-            ctx.fillRect(centerX - 18, centerY - 28, 2, 4);
-            ctx.fillRect(centerX + 14, centerY - 28, 2, 4);
+            const pupilWidth = boss.mood === 'confused' ? 1 : 2;
+            ctx.fillRect(centerX - 19, centerY - 28 + bodyOffset, pupilWidth, 4);
+            ctx.fillRect(centerX + 13, centerY - 28 + bodyOffset, pupilWidth, 4);
             
-            // Cat tail
-            ctx.fillStyle = '#888';
-            const tailSway = Math.sin(Date.now() * 0.01) * 10;
-            ctx.fillRect(centerX + 40, centerY + 20, 30 + tailSway, 8);
+            // Cat tail (more animated)
+            ctx.fillStyle = boss.mood === 'friendly' ? '#AAA' : '#888';
+            const tailSway = Math.sin(Date.now() * 0.01) * 15;
+            const tailHeight = Math.sin(Date.now() * 0.005) * 5;
+            ctx.fillRect(centerX + 40, centerY + 20 + bodyOffset + tailHeight, 30 + tailSway, 8);
+            
+            // Mood indicator
+            if (boss.mood === 'friendly') {
+                // Hearts
+                ctx.fillStyle = '#ff69b4';
+                ctx.font = '16px Arial';
+                ctx.fillText('♥', centerX - 60, centerY - 10);
+                ctx.fillText('♥', centerX + 50, centerY - 5);
+            } else if (boss.mood === 'annoyed') {
+                // Anger marks
+                ctx.strokeStyle = '#ff0000';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(centerX - 50, centerY - 20);
+                ctx.lineTo(centerX - 45, centerY - 25);
+                ctx.moveTo(centerX - 50, centerY - 25);
+                ctx.lineTo(centerX - 45, centerY - 20);
+                ctx.stroke();
+            }
         }
         
         function updatePlayer() {
-            const speed = 3;
+            let speed = 3;
             
-            if ((keys['arrowleft'] || keys['a']) && player.x > battleBox.x + player.size) {
-                player.x -= speed;
+            // Status effect modifications
+            if (player.statusEffects.catnip > 0) {
+                speed = 1.5; // Slower when under catnip influence
             }
-            if ((keys['arrowright'] || keys['d']) && player.x < battleBox.x + battleBox.width - player.size) {
-                player.x += speed;
+            if (player.statusEffects.sleepy > 0) {
+                speed = 2; // Slower when sleepy
             }
-            if ((keys['arrowup'] || keys['w']) && player.y > battleBox.y + player.size) {
-                player.y -= speed;
+            
+            let moveX = 0, moveY = 0;
+            
+            if (keys['arrowleft'] || keys['a']) moveX = -1;
+            if (keys['arrowright'] || keys['d']) moveX = 1;
+            if (keys['arrowup'] || keys['w']) moveY = -1;
+            if (keys['arrowdown'] || keys['s']) moveY = 1;
+            
+            // Catnip effect: reverse controls occasionally
+            if (player.statusEffects.catnip > 0 && Math.random() < 0.3) {
+                moveX *= -1;
+                moveY *= -1;
             }
-            if ((keys['arrowdown'] || keys['s']) && player.y < battleBox.y + battleBox.height - player.size) {
-                player.y += speed;
+            
+            const newX = player.x + moveX * speed;
+            const newY = player.y + moveY * speed;
+            
+            // Boundary checking
+            if (newX >= battleBox.x + player.size && newX <= battleBox.x + battleBox.width - player.size) {
+                player.x = newX;
+            }
+            if (newY >= battleBox.y + player.size && newY <= battleBox.y + battleBox.height - player.size) {
+                player.y = newY;
             }
         }
         
         function drawPlayer() {
-            // Draw heart
-            ctx.fillStyle = '#ff0000';
+            // Draw heart with status effect modifications
+            let heartColor = '#ff0000';
+            if (player.statusEffects.catnip > 0) {
+                heartColor = `hsl(${Date.now() * 0.1 % 360}, 100%, 50%)`;
+            }
+            if (player.statusEffects.sleepy > 0) {
+                heartColor = '#ffaaaa';
+            }
+            
+            ctx.fillStyle = heartColor;
             const size = player.size;
             
             ctx.beginPath();
@@ -500,64 +884,222 @@
             ctx.bezierCurveTo(player.x, player.y + size/2, player.x + size/2, player.y + size/2, player.x + size/2, player.y + size/4);
             ctx.bezierCurveTo(player.x + size/2, player.y, player.x, player.y, player.x, player.y + size/2);
             ctx.fill();
+            
+            // Draw status effect indicators around player
+            if (player.statusEffects.sleepy > 0) {
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '12px Arial';
+                ctx.fillText('zzz', player.x + 12, player.y - 5);
+            }
         }
         
         function updateAttacks() {
             for (let i = attacks.length - 1; i >= 0; i--) {
                 const attack = attacks[i];
                 
-                attack.x += attack.dx;
-                attack.y += attack.dy;
-                
-                // Remove attacks that are off screen
-                if (attack.x < -50 || attack.x > canvas.width + 50 || 
-                    attack.y < -50 || attack.y > canvas.height + 50) {
-                    attacks.splice(i, 1);
-                    continue;
+                // Update position based on attack type
+                switch(attack.type) {
+                    case 'yarnball':
+                        attack.x += attack.dx;
+                        attack.y += attack.dy;
+                        // Bounce off walls
+                        if (attack.x <= battleBox.x || attack.x >= battleBox.x + battleBox.width) {
+                            attack.dx *= -1;
+                            attack.bounces--;
+                        }
+                        if (attack.bounces <= 0) {
+                            attacks.splice(i, 1);
+                            continue;
+                        }
+                        break;
+                        
+                    case 'mouse':
+                        // Homing behavior
+                        const angle = Math.atan2(attack.targetY - attack.y, attack.targetX - attack.x);
+                        attack.x += Math.cos(angle) * attack.speed;
+                        attack.y += Math.sin(angle) * attack.speed;
+                        break;
+                        
+                    case 'string':
+                        attack.x += attack.dx;
+                        attack.y += attack.dy + Math.sin(Date.now() * 0.01 + attack.waveOffset) * 2;
+                        break;
+                        
+                    case 'zoomies':
+                        attack.x += attack.dx;
+                        attack.y += attack.dy;
+                        if (attack.trail) {
+                            attack.trail.push({x: attack.x, y: attack.y});
+                            if (attack.trail.length > 8) {
+                                attack.trail.shift();
+                            }
+                        }
+                        break;
+                        
+                    case 'catnip':
+                        attack.timer--;
+                        attack.x += attack.dx;
+                        attack.y += attack.dy;
+                        if (attack.timer <= 0) {
+                            attacks.splice(i, 1);
+                            continue;
+                        }
+                        break;
+                        
+                    case 'cardboard':
+                    case 'hiding':
+                    case 'litter':
+                        attack.timer--;
+                        if (attack.timer <= 0) {
+                            attacks.splice(i, 1);
+                            continue;
+                        }
+                        break;
+                        
+                    case 'pawswipe':
+                        attack.timer--;
+                        if (attack.timer <= 0) {
+                            attacks.splice(i, 1);
+                            continue;
+                        }
+                        break;
+                        
+                    default:
+                        attack.x += attack.dx;
+                        attack.y += attack.dy;
                 }
                 
-                // Handle specific attack types
-                if (attack.type === 'pawswipe') {
-                    attack.timer--;
-                    if (attack.timer <= 0) {
+                // Remove attacks that are off screen (except persistent ones)
+                if (!['cardboard', 'hiding', 'litter', 'pawswipe'].includes(attack.type)) {
+                    if (attack.x < battleBox.x - 50 || attack.x > battleBox.x + battleBox.width + 50 || 
+                        attack.y < battleBox.y - 50 || attack.y > battleBox.y + battleBox.height + 50) {
                         attacks.splice(i, 1);
                         continue;
                     }
                 }
                 
-                if (attack.type === 'laser' && attack.trail) {
-                    attack.trail.push({x: attack.x, y: attack.y});
-                    if (attack.trail.length > 10) {
-                        attack.trail.shift();
-                    }
-                }
-                
                 // Draw attack
-                ctx.fillStyle = attack.color;
-                if (attack.type === 'yarnball') {
+                drawAttack(attack);
+            }
+        }
+        
+        function drawAttack(attack) {
+            ctx.fillStyle = attack.color;
+            
+            switch(attack.type) {
+                case 'yarnball':
+                    // Draw yarn ball with texture
                     ctx.beginPath();
                     ctx.arc(attack.x, attack.y, attack.size/2, 0, Math.PI * 2);
                     ctx.fill();
-                } else if (attack.type === 'laser') {
-                    // Draw laser trail
+                    ctx.strokeStyle = '#ff1493';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                    break;
+                    
+                case 'mouse':
+                    // Draw mouse shape
+                    ctx.fillRect(attack.x - attack.size/2, attack.y - attack.size/2, attack.size, attack.size);
+                    // Mouse tail
                     ctx.strokeStyle = attack.color;
-                    ctx.lineWidth = attack.size;
+                    ctx.lineWidth = 2;
                     ctx.beginPath();
-                    for (let j = 0; j < attack.trail.length; j++) {
-                        if (j === 0) {
-                            ctx.moveTo(attack.trail[j].x, attack.trail[j].y);
-                        } else {
+                    ctx.moveTo(attack.x + attack.size/2, attack.y);
+                    ctx.lineTo(attack.x + attack.size, attack.y + attack.size/2);
+                    ctx.stroke();
+                    break;
+                    
+                case 'string':
+                    ctx.beginPath();
+                    ctx.arc(attack.x, attack.y, attack.size/2, 0, Math.PI * 2);
+                    ctx.fill();
+                    break;
+                    
+                case 'zoomies':
+                    // Draw trail
+                    if (attack.trail && attack.trail.length > 1) {
+                        ctx.strokeStyle = attack.color;
+                        ctx.lineWidth = attack.size/2;
+                        ctx.beginPath();
+                        ctx.moveTo(attack.trail[0].x, attack.trail[0].y);
+                        for (let j = 1; j < attack.trail.length; j++) {
                             ctx.lineTo(attack.trail[j].x, attack.trail[j].y);
                         }
+                        ctx.stroke();
                     }
-                    ctx.stroke();
-                    
                     ctx.beginPath();
                     ctx.arc(attack.x, attack.y, attack.size/2, 0, Math.PI * 2);
                     ctx.fill();
-                } else {
+                    break;
+                    
+                case 'cardboard':
+                    // Draw cardboard box
+                    ctx.fillRect(attack.x, attack.y, attack.size, attack.size);
+                    ctx.strokeStyle = '#8B4513';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(attack.x, attack.y, attack.size, attack.size);
+                    // Box flaps
+                    ctx.strokeRect(attack.x + 5, attack.y + 5, attack.size - 10, attack.size - 10);
+                    break;
+                    
+                case 'hiding':
+                    // Draw shadow/hiding spot
+                    ctx.globalAlpha = 0.7;
+                    ctx.fillRect(attack.x, attack.y, attack.size, 20);
+                    ctx.globalAlpha = 1.0;
+                    if (attack.timer % 60 < 30) { // Flashing eyes
+                        ctx.fillStyle = '#ff0000';
+                        ctx.fillRect(attack.x + 10, attack.y + 5, 3, 3);
+                        ctx.fillRect(attack.x + 20, attack.y + 5, 3, 3);
+                    }
+                    break;
+                    
+                case 'litter':
+                    // Draw litter box
+                    ctx.fillRect(attack.x, attack.y, attack.size, attack.size);
+                    ctx.strokeStyle = '#8B4513';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(attack.x, attack.y, attack.size, attack.size);
+                    // Litter texture
+                    for (let j = 0; j < 5; j++) {
+                        ctx.fillStyle = '#DDD';
+                        ctx.beginPath();
+                        ctx.arc(attack.x + 5 + j * 6, attack.y + 10, 2, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                    break;
+                    
+                case 'laser':
+                    // Draw laser trail
+                    if (attack.trail && attack.trail.length > 1) {
+                        ctx.strokeStyle = attack.color;
+                        ctx.lineWidth = attack.size;
+                        ctx.beginPath();
+                        for (let j = 0; j < attack.trail.length; j++) {
+                            if (j === 0) {
+                                ctx.moveTo(attack.trail[j].x, attack.trail[j].y);
+                            } else {
+                                ctx.lineTo(attack.trail[j].x, attack.trail[j].y);
+                            }
+                        }
+                        ctx.stroke();
+                    }
+                    ctx.beginPath();
+                    ctx.arc(attack.x, attack.y, attack.size/2, 0, Math.PI * 2);
+                    ctx.fill();
+                    break;
+                    
+                case 'catnip':
+                    // Floating catnip particles
+                    ctx.globalAlpha = 0.8;
+                    ctx.beginPath();
+                    ctx.arc(attack.x, attack.y, attack.size/2, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.globalAlpha = 1.0;
+                    break;
+                    
+                default:
                     ctx.fillRect(attack.x - attack.size/2, attack.y - attack.size/2, attack.size, attack.size);
-                }
             }
         }
         
@@ -572,38 +1114,77 @@
                 }
                 
                 if (particle.type === 'warning') {
-                    ctx.strokeStyle = particle.color;
-                    ctx.lineWidth = 3;
-                    ctx.strokeRect(particle.x - particle.size/2, particle.y - particle.size/2, 
-                                 particle.size, particle.size);
+                    const flash = Math.sin(particle.timer * 0.3) > 0;
+                    if (flash) {
+                        ctx.strokeStyle = particle.color;
+                        ctx.lineWidth = 3;
+                        ctx.strokeRect(particle.x - particle.size/2, particle.y - particle.size/2, 
+                                     particle.size, particle.size);
+                    }
                 }
             }
         }
         
         function checkCollisions() {
-            for (let attack of attacks) {
-                const distance = Math.sqrt(
-                    Math.pow(player.x - attack.x, 2) + Math.pow(player.y - attack.y, 2)
-                );
+            for (let i = attacks.length - 1; i >= 0; i--) {
+                const attack = attacks[i];
+                let distance;
                 
-                if (distance < player.size + attack.size/2) {
-                    // Player hit!
-                    player.hp = Math.max(0, player.hp - 1);
-                    updateStats();
-                    
-                    if (player.hp <= 0) {
-                        gameState = 'gameover';
-                        showDialogue("* You have been defeated by Whiskers! GAME OVER");
+                // Different collision detection for different attack types
+                if (['cardboard', 'hiding', 'litter', 'pawswipe'].includes(attack.type)) {
+                    // Rectangle collision
+                    if (player.x > attack.x && player.x < attack.x + attack.size &&
+                        player.y > attack.y && player.y < attack.y + attack.size) {
+                        handlePlayerHit(attack);
+                        if (attack.type === 'pawswipe') {
+                            attacks.splice(i, 1);
+                        }
                     }
+                } else {
+                    // Circle collision
+                    distance = Math.sqrt(
+                        Math.pow(player.x - attack.x, 2) + Math.pow(player.y - attack.y, 2)
+                    );
                     
-                    // Remove the attack
-                    attacks.splice(attacks.indexOf(attack), 1);
-                    break;
+                    if (distance < player.size + attack.size/2) {
+                        handlePlayerHit(attack);
+                        attacks.splice(i, 1);
+                    }
                 }
             }
         }
         
-        // Start the game
+        function handlePlayerHit(attack) {
+            let damage = 1;
+            
+            // Different attacks do different damage
+            switch(attack.type) {
+                case 'pawswipe':
+                case 'scratching':
+                    damage = 2;
+                    break;
+                case 'treats':
+                    // Treats heal instead of hurt!
+                    player.hp = Math.min(player.maxHP, player.hp + 1);
+                    updateStats();
+                    return;
+                case 'catnip':
+                    player.statusEffects.catnip = Math.max(player.statusEffects.catnip || 0, 60);
+                    damage = 0;
+                    break;
+            }
+            
+            player.hp = Math.max(0, player.hp - damage);
+            updateStats();
+            
+            if (player.hp <= 0) {
+                gameState = 'gameover';
+                showDialogue("* You have been defeated by Whiskers! They sit on your keyboard triumphantly. GAME OVER");
+            }
+        }
+        
+        // Initialize and start the game
+        updateStats();
         gameLoop();
     </script>
 </body>
