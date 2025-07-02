@@ -503,7 +503,7 @@
             isMoving: false,
             lastPosition: { x: 400, y: 300 },
             invincibilityTimer: 0,
-            invincibilityDuration: 30 // 1 second at 60fps
+            invincibilityDuration: 60 // 1 second at 60fps
         };
         let boss = { 
             hp: 250, 
@@ -933,7 +933,7 @@
                 isMoving: false,
                 lastPosition: { x: 400, y: 300 },
                 invincibilityTimer: 0,
-                invincibilityDuration: 30
+                invincibilityDuration: 60
             };
             boss = { 
                 hp: 250, 
@@ -1422,8 +1422,8 @@
             } else if (boss.mood === 'enraged' || boss.enragedMode) {
                 if (musicPath === 'genocide') {
                     attackPool = ['megalovania', 'determination', 'enragedSwipe', 'comboAttack', 'blueBones', 'orangeZoomies'];
-                    // Add healing opportunities in rage mode - reduced chance
-                    if (Math.random() < 0.15 && boss.rageHealingBonus) {
+                    // Add healing opportunities in rage mode - reduced to half
+                    if (Math.random() < 0.075 && boss.rageHealingBonus) {
                         attackPool.push('mercyHealing', 'emergencyTreats');
                     }
                 } else {
@@ -1501,16 +1501,16 @@
             if (boss.phase >= 5) {
                 setTimeout(() => createBlueBonesAttack(), 2400);
             }
-            // Add healing opportunity in combo attacks during rage mode
-            if (boss.rageHealingBonus) {
+            // Add healing opportunity in combo attacks during rage mode - reduced chance
+            if (boss.rageHealingBonus && Math.random() < 0.3) {
                 setTimeout(() => createMercyHealingAttack(), 3200);
             }
         }
 
         // New healing attacks for rage mode
         function createMercyHealingAttack() {
-            // Creates a wave of healing particles - reduced amount
-            for (let i = 0; i < 6; i++) {
+            // Creates a wave of healing particles - reduced to half
+            for (let i = 0; i < 3; i++) {
                 attacks.push({
                     type: 'mercyHealing',
                     x: battleBox.x + Math.random() * battleBox.width,
@@ -1526,9 +1526,9 @@
         }
 
         function createEmergencyTreatsAttack() {
-            // Creates larger healing opportunities - reduced amount
-            for (let i = 0; i < 3; i++) {
-                const x = battleBox.x + (i + 0.5) * (battleBox.width / 3);
+            // Creates larger healing opportunities - reduced to half
+            for (let i = 0; i < 2; i++) {
+                const x = battleBox.x + (i + 0.5) * (battleBox.width / 2);
                 attacks.push({
                     type: 'emergencyTreats',
                     x: x,
@@ -1648,8 +1648,8 @@
         }
         
         function createHealingTreatsAttack() {
-            // Green attacks heal when touched - reduced amounts
-            const count = boss.rageHealingBonus ? 6 : 4;
+            // Green attacks heal when touched - reduced to half
+            const count = boss.rageHealingBonus ? 3 : 2;
             for (let i = 0; i < count; i++) {
                 attacks.push({
                     type: 'healingTreats',
@@ -1832,7 +1832,7 @@
         
         function createTreatShowerAttack() {
             const count = boss.phase >= 3 ? 15 : 12;
-            const healingTreats = boss.mood === 'friendly' || (boss.rageHealingBonus && Math.random() < 0.25); // Reduced chance
+            const healingTreats = boss.mood === 'friendly' || (boss.rageHealingBonus && Math.random() < 0.125); // Reduced to half
             
             for (let i = 0; i < count; i++) {
                 attacks.push({
@@ -2270,6 +2270,14 @@
                 heartColor = '#ffaaaa';
             }
             
+            // Flash effect during invincibility
+            if (player.invincibilityTimer > 0) {
+                const flashRate = 8; // Flash every 8 frames
+                if (Math.floor(player.invincibilityTimer / flashRate) % 2 === 0) {
+                    ctx.globalAlpha = 0.3; // Make semi-transparent when flashing
+                }
+            }
+            
             ctx.fillStyle = heartColor;
             const size = player.size;
             
@@ -2280,6 +2288,9 @@
             ctx.bezierCurveTo(player.x, player.y + size/2, player.x + size/2, player.y + size/2, player.x + size/2, player.y + size/4);
             ctx.bezierCurveTo(player.x + size/2, player.y, player.x, player.y, player.x, player.y + size/2);
             ctx.fill();
+            
+            // Reset alpha
+            ctx.globalAlpha = 1;
             
             if (player.statusEffects.sleepy > 0) {
                 ctx.fillStyle = '#ffffff';
