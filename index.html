@@ -81,23 +81,36 @@
         }
 
         .menu-button.destroyed {
-            background: #330000;
-            color: #666;
-            border-color: #666;
+            background: #1a0000;
+            color: #333;
+            border: 3px solid #333;
             cursor: not-allowed;
             position: relative;
             overflow: hidden;
+            opacity: 0.3;
+            transform: rotate(-5deg) scale(0.8);
+            animation: buttonGlitch 0.5s infinite;
+        }
+
+        @keyframes buttonGlitch {
+            0% { transform: rotate(-5deg) scale(0.8) translateX(0px); }
+            25% { transform: rotate(-4deg) scale(0.75) translateX(-1px); }
+            50% { transform: rotate(-6deg) scale(0.85) translateX(1px); }
+            75% { transform: rotate(-5deg) scale(0.8) translateX(-1px); }
+            100% { transform: rotate(-5deg) scale(0.8) translateX(0px); }
         }
 
         .menu-button.destroyed::before {
-            content: '✗';
+            content: '✗ DESTROYED ✗';
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            font-size: 24px;
+            font-size: 14px;
             color: #ff0000;
             z-index: 1;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px #000;
         }
 
         .menu-button.destroyed::after {
@@ -109,18 +122,18 @@
             bottom: 0;
             background: repeating-linear-gradient(
                 45deg,
-                transparent,
-                transparent 10px,
-                rgba(255, 0, 0, 0.1) 10px,
-                rgba(255, 0, 0, 0.1) 20px
+                rgba(255, 0, 0, 0.2),
+                rgba(255, 0, 0, 0.2) 5px,
+                rgba(0, 0, 0, 0.3) 5px,
+                rgba(0, 0, 0, 0.3) 10px
             );
             z-index: 0;
         }
 
         .menu-button.destroyed:hover {
-            background: #330000;
-            color: #666;
-            transform: none;
+            background: #1a0000;
+            color: #333;
+            transform: rotate(-5deg) scale(0.8);
         }
         
         .stats {
@@ -724,9 +737,11 @@
                     shakeScreen();
                 }
                 
-                // Special effect when destroying the button
+                // Special effect when destroying the button - FORCE DESTRUCTION
                 if (dialogue.includes('CRASH')) {
+                    console.log('CRASH dialogue detected - destroying button!'); // Debug
                     destroyItemButtonVisually();
+                    boss.itemButtonDestroyed = true; // Force destruction flag
                 }
                 
                 // Change text color for dramatic lines
@@ -742,22 +757,58 @@
 
         function destroyItemButtonVisually() {
             const itemButton = document.querySelector('[data-action="item"]');
+            console.log('Destroying button:', itemButton); // Debug
+            
             if (itemButton) {
-                itemButton.classList.add('destroyed');
+                // Immediately show destruction
+                boss.itemButtonDestroyed = true;
                 
-                // Create destruction particles
-                for (let i = 0; i < 20; i++) {
-                    particles.push({
-                        type: 'destruction',
-                        x: 400 + (Math.random() - 0.5) * 100,
-                        y: 500 + (Math.random() - 0.5) * 50,
-                        dx: (Math.random() - 0.5) * 8,
-                        dy: (Math.random() - 0.5) * 8,
-                        timer: 120,
-                        color: '#ff0000',
-                        size: Math.random() * 4 + 2
-                    });
-                }
+                // Add dramatic destruction effect
+                itemButton.style.transition = 'all 0.5s ease';
+                itemButton.style.transform = 'scale(1.2) rotate(10deg)';
+                itemButton.style.background = '#ff0000';
+                itemButton.style.color = '#fff';
+                
+                setTimeout(() => {
+                    itemButton.classList.add('destroyed');
+                    itemButton.innerHTML = '<span style="color: #ff0000; font-weight: bold;">DESTROYED</span>';
+                    
+                    // Force the destroyed state visually
+                    itemButton.style.background = '#1a0000';
+                    itemButton.style.borderColor = '#333';
+                    itemButton.style.transform = 'rotate(-5deg) scale(0.8)';
+                    itemButton.style.opacity = '0.3';
+                    itemButton.style.cursor = 'not-allowed';
+                    
+                    // Create massive destruction particle explosion
+                    for (let i = 0; i < 50; i++) {
+                        particles.push({
+                            type: 'destruction',
+                            x: 400 + (Math.random() - 0.5) * 150,
+                            y: 500 + (Math.random() - 0.5) * 80,
+                            dx: (Math.random() - 0.5) * 12,
+                            dy: (Math.random() - 0.5) * 12 - 5,
+                            timer: 180,
+                            color: Math.random() < 0.5 ? '#ff0000' : '#ffff00',
+                            size: Math.random() * 6 + 3
+                        });
+                    }
+                    
+                    // Add screen shake effect
+                    let shakeCount = 0;
+                    const shakeInterval = setInterval(() => {
+                        document.getElementById('gameContainer').style.transform = 
+                            `translate(${(Math.random() - 0.5) * 10}px, ${(Math.random() - 0.5) * 10}px)`;
+                        shakeCount++;
+                        
+                        if (shakeCount > 20) {
+                            clearInterval(shakeInterval);
+                            document.getElementById('gameContainer').style.transform = 'translate(0px, 0px)';
+                        }
+                    }, 50);
+                }, 300);
+            } else {
+                console.log('Item button not found!'); // Debug
             }
         }
 
@@ -1152,10 +1203,21 @@
             rageModeIndicator.style.display = 'none';
             cutsceneOverlay.style.display = 'none';
             
-            // Reset menu selection
+            // Reset menu selection and restore ITEM button
             const buttons = document.querySelectorAll('.menu-button');
-            buttons.forEach((button) => {
+            buttons.forEach((button, index) => {
                 button.classList.remove('selected', 'destroyed');
+                
+                // Specifically restore ITEM button
+                if (index === 2) { // ITEM button
+                    button.innerHTML = 'ITEM';
+                    button.style.background = '';
+                    button.style.borderColor = '';
+                    button.style.transform = '';
+                    button.style.opacity = '';
+                    button.style.cursor = '';
+                    button.style.color = '';
+                }
             });
             
             // Show instructions
