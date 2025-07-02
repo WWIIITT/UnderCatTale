@@ -556,6 +556,20 @@
         const targetFPS = 60;
         const frameTime = 1000 / targetFPS;
         
+        // Image loading
+        const catPawImage = new Image();
+        catPawImage.src = './public/catpaw.png';
+        let imageLoaded = false;
+        
+        catPawImage.onload = () => {
+            imageLoaded = true;
+            console.log('Cat paw image loaded successfully');
+        };
+        
+        catPawImage.onerror = () => {
+            console.error('Failed to load cat paw image');
+        };
+        
         // Language system
         let currentLanguage = 'en';
         
@@ -1155,6 +1169,16 @@
         let gameLoopId = null;
         let cutsceneStep = 0;
         
+        // Attack pattern counters for fixed patterns
+        let attackPatternCounters = {
+            yarnball: 0,
+            fishbone: 0,
+            blueBones: 0,
+            orangeZoomies: 0,
+            string: 0,
+            scratching: 0
+        };
+        
         // Audio Functions
         function initializeAudio() {
             backgroundMusic.volume = volumeSlider.value / 100;
@@ -1632,6 +1656,16 @@
             attackPhaseTimer = 0;
             musicPath = 'neutral';
             cutsceneStep = 0;
+
+            // Reset attack pattern counters
+            attackPatternCounters = {
+                yarnball: 0,
+                fishbone: 0,
+                blueBones: 0,
+                orangeZoomies: 0,
+                string: 0,
+                scratching: 0
+            };
 
             // Clear canvas completely
             ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -2118,6 +2152,9 @@
             player.y = battleBox.y + battleBox.height / 2;
             player.lastPosition = { x: player.x, y: player.y };
             
+            // SET 1 SECOND INVINCIBILITY ON SPAWN
+            player.invincibilityTimer = 60; // 60 frames = 1 second at 60fps
+            
             boss.phase = Math.floor((boss.maxHP - boss.hp) / 50) + 1;
             currentPhaseSpan.textContent = boss.phase;
             
@@ -2168,7 +2205,7 @@
             statusEffect.textContent = statusText;
         }
         
-        // Enhanced Attack patterns with color coding
+        // Enhanced Attack patterns with FIXED patterns (no more random)
         function generateRandomAttack() {
             // Don't generate attacks if game has ended
             if (gameState === 'win' || gameState === 'gameover' || gameState === 'player_death' || gameState === 'death_animation') {
@@ -2330,14 +2367,14 @@
 
         // New special attacks for rage mode
         function createMegalovaniaAttack() {
-            // Special attack pattern inspired by Sans
+            // Special attack pattern inspired by Sans - FIXED PATTERNS
             const patterns = [
-                // Bone wall from bottom
+                // Bone wall from bottom - FIXED positions
                 () => {
                     for (let i = 0; i < 8; i++) {
                         attacks.push({
                             type: 'megalovania',
-                            x: battleBox.x + i * 80 + 20,
+                            x: battleBox.x + 20 + i * 60,
                             y: battleBox.y + battleBox.height,
                             dx: 0,
                             dy: -6,
@@ -2348,7 +2385,7 @@
                         });
                     }
                 },
-                // Circling bones
+                // Circling bones - FIXED pattern
                 () => {
                     for (let i = 0; i < 12; i++) {
                         const angle = (i / 12) * Math.PI * 2;
@@ -2368,22 +2405,26 @@
                 }
             ];
             
-            patterns[Math.floor(Math.random() * patterns.length)]();
+            // Cycle through patterns instead of random
+            attackPatternCounters.megalovania = (attackPatternCounters.megalovania || 0) % patterns.length;
+            patterns[attackPatternCounters.megalovania]();
+            attackPatternCounters.megalovania++;
         }
 
         function createDeterminationAttack() {
-            // Attack that gets stronger the lower boss HP is
+            // Attack that gets stronger the lower boss HP is - FIXED pattern from left and right
             const intensity = 1 + (1 - boss.hp / boss.maxHP) * 2;
             
             for (let i = 0; i < 5 * intensity; i++) {
                 setTimeout(() => {
-                    const side = Math.random() < 0.5 ? 'left' : 'right';
+                    const side = i % 2 === 0 ? 'left' : 'right'; // Alternate sides
                     const startX = side === 'left' ? battleBox.x - 20 : battleBox.x + battleBox.width + 20;
+                    const yPos = battleBox.y + 20 + (i % 8) * 20; // Fixed Y positions
                     
                     attacks.push({
                         type: 'determination',
                         x: startX,
-                        y: battleBox.y + Math.random() * battleBox.height,
+                        y: yPos,
                         dx: side === 'left' ? 8 : -8,
                         dy: 0,
                         size: 8,
@@ -2395,14 +2436,17 @@
             }
         }
         
-        // NEW ENHANCED ATTACK PATTERNS
+        // FIXED PATTERN ATTACK FUNCTIONS
         
         function createBlueBonesAttack() {
-            // Blue attacks hurt only when moving
-            for (let i = 0; i < 6; i++) {
+            // Blue attacks hurt only when moving - FIXED spacing
+            const count = boss.phase >= 3 ? 6 : 4;
+            const spacing = battleBox.width / (count + 1);
+            
+            for (let i = 0; i < count; i++) {
                 attacks.push({
                     type: 'blueBones',
-                    x: battleBox.x + i * 80 + 40,
+                    x: battleBox.x + spacing * (i + 1),
                     y: battleBox.y - 20,
                     dx: 0,
                     dy: 3,
@@ -2414,9 +2458,12 @@
         }
         
         function createOrangeZoomiesAttack() {
-            // Orange attacks hurt only when still
-            for (let i = 0; i < 8; i++) {
-                const angle = (i / 8) * Math.PI * 2;
+            // Orange attacks hurt only when still - FIXED radial pattern
+            const count = boss.phase >= 3 ? 8 : 6;
+            const angleStep = (Math.PI * 2) / count;
+            
+            for (let i = 0; i < count; i++) {
+                const angle = i * angleStep;
                 attacks.push({
                     type: 'orangeZoomies',
                     x: battleBox.x + battleBox.width/2,
@@ -2432,15 +2479,17 @@
         }
         
         function createHealingTreatsAttack() {
-            // Green attacks heal when touched - reduced to half
+            // Green attacks heal when touched - FIXED positions
             const count = boss.rageHealingBonus ? 3 : 2;
+            const spacing = battleBox.width / (count + 1);
+            
             for (let i = 0; i < count; i++) {
                 attacks.push({
                     type: 'healingTreats',
-                    x: battleBox.x + Math.random() * battleBox.width,
+                    x: battleBox.x + spacing * (i + 1),
                     y: battleBox.y - 10,
-                    dx: (Math.random() - 0.5) * 2,
-                    dy: 2 + Math.random() * 2,
+                    dx: 0,
+                    dy: 2,
                     size: 8,
                     color: '#00ff00',
                     attackColor: 'green',
@@ -2450,16 +2499,21 @@
         }
         
         function createEnragedSwipeAttack() {
-            // Multiple rapid swipes when boss is enraged
+            // Multiple rapid swipes when boss is enraged - FIXED positions
+            const positions = [
+                { x: battleBox.x + battleBox.width * 0.25, y: battleBox.y + battleBox.height * 0.25 },
+                { x: battleBox.x + battleBox.width * 0.75, y: battleBox.y + battleBox.height * 0.75 },
+                { x: battleBox.x + battleBox.width * 0.5, y: battleBox.y + battleBox.height * 0.5 }
+            ];
+            
             for (let i = 0; i < 3; i++) {
                 setTimeout(() => {
-                    const targetX = player.x + (Math.random() - 0.5) * 60;
-                    const targetY = player.y + (Math.random() - 0.5) * 60;
+                    const pos = positions[i];
                     
                     particles.push({
                         type: 'warning',
-                        x: targetX,
-                        y: targetY,
+                        x: pos.x,
+                        y: pos.y,
                         timer: 40,
                         size: 50,
                         color: '#ff0000'
@@ -2468,8 +2522,8 @@
                     setTimeout(() => {
                         attacks.push({
                             type: 'enragedSwipe',
-                            x: targetX - 35,
-                            y: targetY - 35,
+                            x: pos.x - 35,
+                            y: pos.y - 35,
                             size: 70,
                             timer: 30,
                             color: '#ff4500'
@@ -2479,16 +2533,22 @@
             }
         }
         
-        // Keep all original attack functions but enhance them
+        // Enhanced original attack functions with FIXED patterns
         function createYarnBallAttack() {
             const count = boss.phase >= 3 ? 6 : 4;
+            const spacing = battleBox.width / count;
+            
+            // Use pattern counter for consistent bouncing
+            attackPatternCounters.yarnball = (attackPatternCounters.yarnball + 1) % 2;
+            const direction = attackPatternCounters.yarnball === 0 ? 1 : -1;
+            
             for (let i = 0; i < count; i++) {
                 attacks.push({
                     type: 'yarnball',
-                    x: Math.random() * battleBox.width + battleBox.x,
+                    x: battleBox.x + spacing * i + spacing / 2,
                     y: battleBox.y - 20,
-                    dx: (Math.random() - 0.5) * 3,
-                    dy: 2 + Math.random() * 2,
+                    dx: direction * (1 + i * 0.5),
+                    dy: 2,
                     size: 12,
                     color: '#ff69b4',
                     bounces: boss.phase >= 4 ? 3 : 2,
@@ -2498,16 +2558,19 @@
         }
         
         function createFishBoneAttack() {
-            const side = Math.random() < 0.5 ? 'left' : 'right';
+            // FIXED pattern - alternates sides
+            attackPatternCounters.fishbone = (attackPatternCounters.fishbone + 1) % 2;
+            const side = attackPatternCounters.fishbone === 0 ? 'left' : 'right';
             const startX = side === 'left' ? battleBox.x - 20 : battleBox.x + battleBox.width + 20;
             const count = boss.phase >= 3 ? 8 : 6;
+            const spacing = battleBox.height / count;
             
             for (let i = 0; i < count; i++) {
                 attacks.push({
                     type: 'fishbone',
                     x: startX,
-                    y: battleBox.y + i * 25 + 20,
-                    dx: side === 'left' ? 4 + boss.phase : -(4 + boss.phase),
+                    y: battleBox.y + spacing * i,
+                    dx: side === 'left' ? (4 + boss.phase) : -(4 + boss.phase),
                     dy: 0,
                     size: 10,
                     color: '#ffd700',
@@ -2517,6 +2580,7 @@
         }
         
         function createPawSwipeAttack() {
+            // Target player position but with warning - this can remain targeting
             const targetX = player.x;
             const targetY = player.y;
             
@@ -2543,6 +2607,7 @@
         }
         
         function createLaserPointerAttack() {
+            // This targets player - keep as targeting attack
             const angle = Math.atan2(player.y - (battleBox.y + battleBox.height/2), 
                                    player.x - (battleBox.x + battleBox.width/2));
             
@@ -2560,26 +2625,36 @@
         }
         
         function createCatnipCloudAttack() {
-            const count = boss.phase >= 4 ? 25 : 20;
-            for (let i = 0; i < count; i++) {
-                attacks.push({
-                    type: 'catnip',
-                    x: battleBox.x + Math.random() * battleBox.width,
-                    y: battleBox.y + Math.random() * battleBox.height,
-                    dx: (Math.random() - 0.5) * 1,
-                    dy: (Math.random() - 0.5) * 1,
-                    size: 6,
-                    color: '#90EE90',
-                    timer: 180,
-                    attackColor: 'white'
-                });
+            // FIXED grid pattern
+            const rows = 4;
+            const cols = 5;
+            const spacingX = battleBox.width / (cols + 1);
+            const spacingY = battleBox.height / (rows + 1);
+            
+            for (let row = 0; row < rows; row++) {
+                for (let col = 0; col < cols; col++) {
+                    attacks.push({
+                        type: 'catnip',
+                        x: battleBox.x + spacingX * (col + 1),
+                        y: battleBox.y + spacingY * (row + 1),
+                        dx: 0,
+                        dy: 0,
+                        size: 6,
+                        color: '#90EE90',
+                        timer: 180,
+                        attackColor: 'white'
+                    });
+                }
             }
         }
         
         function createZoomiesAttack() {
+            // FIXED radial pattern
             const count = boss.phase >= 3 ? 10 : 8;
+            const angleStep = (Math.PI * 2) / count;
+            
             for (let i = 0; i < count; i++) {
-                const angle = (i / count) * Math.PI * 2;
+                const angle = i * angleStep;
                 attacks.push({
                     type: 'zoomies',
                     x: battleBox.x + battleBox.width/2,
@@ -2595,17 +2670,23 @@
         }
         
         function createMouseToyAttack() {
+            // FIXED positions but can target player
+            const fixedPositions = [
+                { x: battleBox.x + 50, y: battleBox.y + 50 },
+                { x: battleBox.x + battleBox.width - 50, y: battleBox.y + 50 },
+                { x: battleBox.x + 50, y: battleBox.y + battleBox.height - 50 },
+                { x: battleBox.x + battleBox.width - 50, y: battleBox.y + battleBox.height - 50 }
+            ];
+            
             const count = boss.phase >= 4 ? 4 : 3;
             for (let i = 0; i < count; i++) {
-                const targetX = player.x + (Math.random() - 0.5) * 100;
-                const targetY = player.y + (Math.random() - 0.5) * 100;
-                
+                const startPos = fixedPositions[i % fixedPositions.length];
                 attacks.push({
                     type: 'mouse',
-                    x: battleBox.x + Math.random() * battleBox.width,
-                    y: battleBox.y + Math.random() * battleBox.height,
-                    targetX: targetX,
-                    targetY: targetY,
+                    x: startPos.x,
+                    y: startPos.y,
+                    targetX: player.x,
+                    targetY: player.y,
                     size: 8,   
                     color: '#8B4513',
                     speed: 2 + boss.phase * 0.5,
@@ -2615,16 +2696,23 @@
         }
         
         function createTreatShowerAttack() {
+            // FIXED grid pattern
             const count = boss.phase >= 3 ? 15 : 12;
-            const healingTreats = boss.mood === 'friendly' || (boss.rageHealingBonus && Math.random() < 0.125); // Reduced to half
+            const cols = 5;
+            const rows = Math.ceil(count / cols);
+            const spacingX = battleBox.width / cols;
+            const healingTreats = boss.mood === 'friendly' || (boss.rageHealingBonus && Math.random() < 0.125);
             
             for (let i = 0; i < count; i++) {
+                const col = i % cols;
+                const row = Math.floor(i / cols);
+                
                 attacks.push({
                     type: healingTreats ? 'healingTreats' : 'treats',
-                    x: battleBox.x + Math.random() * battleBox.width,
-                    y: battleBox.y - 10,
-                    dx: (Math.random() - 0.5) * 2,
-                    dy: 1 + Math.random() * 3,
+                    x: battleBox.x + spacingX * col + spacingX / 2,
+                    y: battleBox.y - 10 - row * 30,
+                    dx: 0,
+                    dy: 1 + row * 0.5,
                     size: 5,
                     color: healingTreats ? '#00ff00' : '#D2691E',
                     attackColor: healingTreats ? 'green' : 'white',
@@ -2634,8 +2722,9 @@
         }
         
         function createCardboardBoxAttack() {
-            const boxX = battleBox.x + Math.random() * (battleBox.width - 60);
-            const boxY = battleBox.y + Math.random() * (battleBox.height - 60);
+            // FIXED position in center
+            const boxX = battleBox.x + battleBox.width/2 - 30;
+            const boxY = battleBox.y + battleBox.height/2 - 30;
             
             attacks.push({
                 type: 'cardboard',
@@ -2650,6 +2739,7 @@
         }
         
         function createStringAttack() {
+            // FIXED wave pattern
             const startX = battleBox.x;
             const startY = battleBox.y + battleBox.height/2;
             const count = boss.phase >= 4 ? 12 : 10;
@@ -2657,7 +2747,7 @@
             for (let i = 0; i < count; i++) {
                 attacks.push({
                     type: 'string',
-                    x: startX + i * 40,
+                    x: startX - i * 15,
                     y: startY,
                     dx: 2 + boss.phase * 0.5,
                     dy: Math.sin(i * 0.5) * 2,
@@ -2670,6 +2760,7 @@
         }
         
         function createHairballAttack() {
+            // FIXED center position
             particles.push({
                 type: 'warning',
                 x: battleBox.x + battleBox.width/2,
@@ -2699,11 +2790,14 @@
         }
         
         function createScratchingPostAttack() {
+            // FIXED vertical lines
             const count = boss.phase >= 4 ? 6 : 5;
+            const spacing = battleBox.width / (count + 1);
+            
             for (let i = 0; i < count; i++) {
                 attacks.push({
                     type: 'scratching',
-                    x: battleBox.x + i * 80 + 50,
+                    x: battleBox.x + spacing * (i + 1),
                     y: battleBox.y,
                     dx: 0,
                     dy: 4 + boss.phase,
@@ -2716,15 +2810,20 @@
         }
         
         function createHidingAttack() {
-            const count = boss.phase >= 4 ? 4 : 3;
+            // FIXED positions for shadows
+            const fixedShadows = [
+                { x: battleBox.x + 50, y: battleBox.y + battleBox.height - 40 },
+                { x: battleBox.x + battleBox.width - 130, y: battleBox.y + battleBox.height - 40 },
+                { x: battleBox.x + battleBox.width/2 - 40, y: battleBox.y + 50 }
+            ];
+            
+            const count = boss.phase >= 4 ? 3 : 2;
             for (let i = 0; i < count; i++) {
-                const shadowX = battleBox.x + Math.random() * (battleBox.width - 80);
-                const shadowY = battleBox.y + Math.random() * (battleBox.height - 20);
-                
+                const pos = fixedShadows[i];
                 attacks.push({
                     type: 'hiding',
-                    x: shadowX,
-                    y: shadowY,
+                    x: pos.x,
+                    y: pos.y,
                     size: 80,
                     color: '#333333',
                     timer: 150 + boss.phase * 10,
@@ -2735,6 +2834,7 @@
         }
         
         function createLitterBoxAttack() {
+            // FIXED corner positions
             const corners = [
                 {x: battleBox.x, y: battleBox.y},
                 {x: battleBox.x + battleBox.width - 40, y: battleBox.y},
@@ -3430,6 +3530,24 @@
                     ctx.arc(attack.x, attack.y, attack.size/2, 0, Math.PI * 2);
                     ctx.fill();
                     ctx.globalAlpha = 1.0;
+                    break;
+                    
+                case 'pawswipe':
+                case 'enragedSwipe':
+                    // Use the cat paw image if loaded, otherwise fallback to rectangle
+                    if (imageLoaded && catPawImage) {
+                        try {
+                            // Draw the cat paw image
+                            ctx.drawImage(catPawImage, attack.x, attack.y, attack.size, attack.size);
+                        } catch (error) {
+                            console.warn('Failed to draw cat paw image:', error);
+                            // Fallback to rectangle
+                            ctx.fillRect(attack.x, attack.y, attack.size, attack.size);
+                        }
+                    } else {
+                        // Fallback to rectangle if image not loaded
+                        ctx.fillRect(attack.x, attack.y, attack.size, attack.size);
+                    }
                     break;
                     
                 default:
