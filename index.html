@@ -81,15 +81,16 @@
         }
 
         .menu-button.destroyed {
-            background: #1a0000;
-            color: #333;
-            border: 3px solid #333;
-            cursor: not-allowed;
+            background: #1a0000 !important;
+            color: #333 !important;
+            border: 3px solid #333 !important;
+            cursor: not-allowed !important;
             position: relative;
             overflow: hidden;
-            opacity: 0.3;
-            transform: rotate(-5deg) scale(0.8);
+            opacity: 0.3 !important;
+            transform: rotate(-5deg) scale(0.8) !important;
             animation: buttonGlitch 0.5s infinite;
+            pointer-events: none !important;
         }
 
         @keyframes buttonGlitch {
@@ -131,9 +132,15 @@
         }
 
         .menu-button.destroyed:hover {
-            background: #1a0000;
-            color: #333;
-            transform: rotate(-5deg) scale(0.8);
+            background: #1a0000 !important;
+            color: #333 !important;
+            transform: rotate(-5deg) scale(0.8) !important;
+        }
+
+        .menu-button.destroyed.selected {
+            background: #1a0000 !important;
+            color: #333 !important;
+            transform: rotate(-5deg) scale(0.8) !important;
         }
         
         .stats {
@@ -423,13 +430,13 @@
         
         <!-- Background Music -->
         <audio id="backgroundMusic" loop preload="auto">
-            <source src="./public/last_goodbye.mp3" type="audio/mpeg">
+            <source src="https://www.soundjay.com/misc/sounds/bell-ringing-05.wav" type="audio/wav">
             Your browser does not support the audio element.
         </audio>
 
         <!-- Rage Mode Music -->
         <audio id="rageMusic" loop preload="auto">
-            <source src="./public/MEGALOVANIA.mp3" type="audio/mpeg">
+            <source src="https://www.soundjay.com/misc/sounds/fail-buzzer-02.wav" type="audio/wav">
             Your browser does not support the audio element.
         </audio>
         
@@ -579,7 +586,8 @@
             mercyAttempts: 0,
             rageHealingBonus: false,
             cutsceneTriggered: false,
-            itemButtonDestroyed: false
+            itemButtonDestroyed: false,
+            emergencyHealsUsed: 0 // Track emergency heals used
         };
         let attacks = [];
         let particles = [];
@@ -618,7 +626,7 @@
             "* *eyes glow with malicious intent*",
             "* <span class='dramatic-text'>NO MORE ITEMS FOR YOU!</span>",
             "* *swipes at the ITEM button with supernatural force*",
-            "* *CRASH!* The button shatters into digital fragments!",
+            "* <span class='dramatic-text'>CRASH!</span> The button shatters into digital fragments!",
             "* mrow... now you must face me with only your <span class='dramatic-text'>DETERMINATION</span>!"
         ];
         
@@ -703,8 +711,16 @@
         }
 
         function triggerItemDestructionCutscene() {
-            if (boss.itemButtonDestroyed) return;
+            console.log("🎭 TRIGGERING ITEM DESTRUCTION CUTSCENE!");
+            
+            if (boss.itemButtonDestroyed) {
+                console.log("Button already destroyed, skipping cutscene");
+                return;
+            }
+            
+            // IMMEDIATELY mark button as destroyed to prevent any further usage
             boss.itemButtonDestroyed = true;
+            destroyItemButtonVisually(); // Apply visual destruction immediately
             
             gameState = 'item_destruction_cutscene';
             cutsceneStep = 0;
@@ -737,13 +753,6 @@
                     shakeScreen();
                 }
                 
-                // Special effect when destroying the button - FORCE DESTRUCTION
-                if (dialogue.includes('CRASH')) {
-                    console.log('CRASH dialogue detected - destroying button!'); // Debug
-                    destroyItemButtonVisually();
-                    boss.itemButtonDestroyed = true; // Force destruction flag
-                }
-                
                 // Change text color for dramatic lines
                 if (dialogue.includes('NO MORE ITEMS') || dialogue.includes('DETERMINATION')) {
                     cutsceneText.style.color = '#ff0000';
@@ -757,58 +766,54 @@
 
         function destroyItemButtonVisually() {
             const itemButton = document.querySelector('[data-action="item"]');
-            console.log('Destroying button:', itemButton); // Debug
+            console.log('🔥 DESTROYING BUTTON VISUALLY:', itemButton);
             
             if (itemButton) {
-                // Immediately show destruction
-                boss.itemButtonDestroyed = true;
+                // FORCE DESTRUCTION STATE
+                itemButton.classList.add('destroyed');
                 
-                // Add dramatic destruction effect
-                itemButton.style.transition = 'all 0.5s ease';
-                itemButton.style.transform = 'scale(1.2) rotate(10deg)';
-                itemButton.style.background = '#ff0000';
-                itemButton.style.color = '#fff';
+                // Override all styles to ensure destruction is visible
+                itemButton.style.setProperty('background', '#1a0000', 'important');
+                itemButton.style.setProperty('color', '#333', 'important');
+                itemButton.style.setProperty('border-color', '#333', 'important');
+                itemButton.style.setProperty('transform', 'rotate(-5deg) scale(0.8)', 'important');
+                itemButton.style.setProperty('opacity', '0.3', 'important');
+                itemButton.style.setProperty('cursor', 'not-allowed', 'important');
+                itemButton.style.setProperty('pointer-events', 'none', 'important');
                 
-                setTimeout(() => {
-                    itemButton.classList.add('destroyed');
-                    itemButton.innerHTML = '<span style="color: #ff0000; font-weight: bold;">DESTROYED</span>';
+                // Change text content
+                itemButton.innerHTML = '<span style="color: #ff0000; font-weight: bold;">DESTROYED</span>';
+                
+                // Create massive destruction particle explosion
+                for (let i = 0; i < 50; i++) {
+                    particles.push({
+                        type: 'destruction',
+                        x: 400 + (Math.random() - 0.5) * 150,
+                        y: 500 + (Math.random() - 0.5) * 80,
+                        dx: (Math.random() - 0.5) * 12,
+                        dy: (Math.random() - 0.5) * 12 - 5,
+                        timer: 180,
+                        color: Math.random() < 0.5 ? '#ff0000' : '#ffff00',
+                        size: Math.random() * 6 + 3
+                    });
+                }
+                
+                // Add screen shake effect
+                let shakeCount = 0;
+                const shakeInterval = setInterval(() => {
+                    document.getElementById('gameContainer').style.transform = 
+                        `translate(${(Math.random() - 0.5) * 10}px, ${(Math.random() - 0.5) * 10}px)`;
+                    shakeCount++;
                     
-                    // Force the destroyed state visually
-                    itemButton.style.background = '#1a0000';
-                    itemButton.style.borderColor = '#333';
-                    itemButton.style.transform = 'rotate(-5deg) scale(0.8)';
-                    itemButton.style.opacity = '0.3';
-                    itemButton.style.cursor = 'not-allowed';
-                    
-                    // Create massive destruction particle explosion
-                    for (let i = 0; i < 50; i++) {
-                        particles.push({
-                            type: 'destruction',
-                            x: 400 + (Math.random() - 0.5) * 150,
-                            y: 500 + (Math.random() - 0.5) * 80,
-                            dx: (Math.random() - 0.5) * 12,
-                            dy: (Math.random() - 0.5) * 12 - 5,
-                            timer: 180,
-                            color: Math.random() < 0.5 ? '#ff0000' : '#ffff00',
-                            size: Math.random() * 6 + 3
-                        });
+                    if (shakeCount > 20) {
+                        clearInterval(shakeInterval);
+                        document.getElementById('gameContainer').style.transform = 'translate(0px, 0px)';
                     }
-                    
-                    // Add screen shake effect
-                    let shakeCount = 0;
-                    const shakeInterval = setInterval(() => {
-                        document.getElementById('gameContainer').style.transform = 
-                            `translate(${(Math.random() - 0.5) * 10}px, ${(Math.random() - 0.5) * 10}px)`;
-                        shakeCount++;
-                        
-                        if (shakeCount > 20) {
-                            clearInterval(shakeInterval);
-                            document.getElementById('gameContainer').style.transform = 'translate(0px, 0px)';
-                        }
-                    }, 50);
-                }, 300);
+                }, 50);
+                
+                console.log('✅ BUTTON DESTRUCTION COMPLETE');
             } else {
-                console.log('Item button not found!'); // Debug
+                console.log('❌ Item button not found!');
             }
         }
 
@@ -848,11 +853,6 @@
                     dialogue.includes('NO MORE ITEMS') || dialogue.includes('CRASH') || dialogue.includes('DETERMINATION')) {
                     flashScreen();
                     shakeScreen();
-                }
-                
-                // Special effect when destroying the button
-                if (dialogue.includes('CRASH')) {
-                    destroyItemButtonVisually();
                 }
                 
                 // Change text color for dramatic lines
@@ -926,6 +926,7 @@
                 
                 // Add emergency heals for rage mode
                 playerItems.emergencyHeal = 2;
+                boss.emergencyHealsUsed = 0; // Reset counter
                 
                 const currentVolume = currentMusic.volume;
                 
@@ -1168,7 +1169,8 @@
                 mercyAttempts: 0,
                 rageHealingBonus: false,
                 cutsceneTriggered: false,
-                itemButtonDestroyed: false
+                itemButtonDestroyed: false,
+                emergencyHealsUsed: 0
             };
             attacks = [];
             particles = [];
@@ -1211,12 +1213,9 @@
                 // Specifically restore ITEM button
                 if (index === 2) { // ITEM button
                     button.innerHTML = 'ITEM';
-                    button.style.background = '';
-                    button.style.borderColor = '';
-                    button.style.transform = '';
-                    button.style.opacity = '';
-                    button.style.cursor = '';
-                    button.style.color = '';
+                    // Clear all forced styles
+                    button.style.cssText = '';
+                    button.removeAttribute('style');
                 }
             });
             
@@ -1316,6 +1315,7 @@
                 if (gameState === 'menu') {
                     // Don't allow clicking destroyed item button
                     if (index === 2 && boss.itemButtonDestroyed) {
+                        console.log("🚫 ITEM button is destroyed - click blocked!");
                         showDialogue("* The ITEM button is destroyed... you can't use items anymore!");
                         return;
                     }
@@ -1331,11 +1331,11 @@
         function updateMenuSelection() {
             const buttons = document.querySelectorAll('.menu-button');
             buttons.forEach((button, index) => {
-                button.classList.toggle('selected', index === selectedMenuItem);
-                
-                // Don't allow selection of destroyed item button
-                if (index === 2 && boss.itemButtonDestroyed) { // index 2 is ITEM button
+                if (index === 2 && boss.itemButtonDestroyed) {
+                    // Don't allow selection of destroyed item button
                     button.classList.remove('selected');
+                } else {
+                    button.classList.toggle('selected', index === selectedMenuItem);
                 }
             });
         }
@@ -1346,9 +1346,9 @@
             const actions = ['fight', 'act', 'item', 'mercy'];
             const action = actions[selectedMenuItem];
             
-            // Check if ITEM button is destroyed
+            // Check if ITEM button is destroyed - ABSOLUTE BLOCK
             if (action === 'item' && boss.itemButtonDestroyed) {
-                // Play a sad meow sound effect (if we had audio)
+                console.log("🚫 BLOCKED: Attempting to use destroyed ITEM button!");
                 showDialogue("* The ITEM button is destroyed... you can't use items anymore!");
                 return;
             }
@@ -1440,41 +1440,54 @@
         }
         
         function handleItemMenu() {
+            console.log("🎒 ITEM MENU - Checking states:");
+            console.log("- Enraged Mode:", boss.enragedMode);
+            console.log("- Item Button Destroyed:", boss.itemButtonDestroyed);
+            console.log("- Emergency Heals:", playerItems.emergencyHeal);
+            console.log("- Emergency Heals Used:", boss.emergencyHealsUsed);
+            
+            // ABSOLUTE CHECK: If button is destroyed, no items allowed
+            if (boss.itemButtonDestroyed) {
+                console.log("🚫 BLOCKED: Item button is destroyed!");
+                return "* The ITEM button is destroyed... you can't use items anymore!";
+            }
+            
             let message = "";
             
-            // Show available items during rage mode
+            // Enhanced logic for rage mode
             if (boss.enragedMode && boss.rageHealingBonus) {
+                console.log("🔥 RAGE MODE ITEM HANDLING");
+                
+                // In rage mode, ONLY emergency heals work
                 if (playerItems.emergencyHeal > 0) {
                     playerItems.emergencyHeal--;
+                    boss.emergencyHealsUsed++;
                     player.hp = Math.min(player.maxHP, player.hp + 12);
                     message = "* You use an emergency heal! Restored 12 HP. The power of determination fills you.";
                     
+                    console.log("🚨 Emergency heal used! Remaining:", playerItems.emergencyHeal);
+                    
                     // Check if this was the last emergency heal
-                    if (playerItems.emergencyHeal === 0 && !boss.itemButtonDestroyed) {
-                        // Trigger the item destruction cutscene after a delay
+                    if (playerItems.emergencyHeal === 0) {
+                        console.log("💥 LAST EMERGENCY HEAL USED - TRIGGERING DESTRUCTION!");
+                        message += "\n* That was your last emergency heal... Cans looks at you with growing malice!";
+                        
+                        // Trigger the item destruction cutscene immediately after this dialogue
                         setTimeout(() => {
-                            if (gameState === 'menu' && boss.enragedMode && !boss.itemButtonDestroyed) {
+                            if (!boss.itemButtonDestroyed) { // Double check
                                 triggerItemDestructionCutscene();
                             }
-                        }, 3000); // Wait 3 seconds after the dialogue
-                        
-                        message += "\n* That was your last emergency heal...";
+                        }, 100); // Very short delay to let dialogue show first
                     }
-                } else if (playerItems.treats > 0) {
-                    playerItems.treats--;
-                    player.hp = Math.min(player.maxHP, player.hp + 10);
-                    boss.mood = 'friendly';
-                    message = "* You eat some treats. Restored 10 HP. Cans looks jealous but less hostile.";
-                } else if (playerItems.catnip > 0) {
-                    playerItems.catnip--;
-                    player.statusEffects.catnip = 120;
-                    boss.mood = 'confused';
-                    message = "* You scatter catnip around. Cans becomes entranced, and you feel dizzy too!";
                 } else {
-                    message = "* You have no items left! Stay determined!";
+                    // NO ITEMS WORK IN RAGE MODE EXCEPT EMERGENCY HEALS
+                    console.log("❌ No emergency heals left in rage mode!");
+                    message = "* In Cans' rage, only emergency heals can help you... but you have none left!";
                 }
             } else {
-                // Normal item handling
+                // Normal item handling (not in rage mode)
+                console.log("😊 NORMAL MODE ITEM HANDLING");
+                
                 if (playerItems.treats > 0) {
                     playerItems.treats--;
                     player.hp = Math.min(player.maxHP, player.hp + 8);
@@ -1490,6 +1503,7 @@
                 }
             }
             
+            console.log("📝 Item menu result:", message);
             return message;
         }
 
