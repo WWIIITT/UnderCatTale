@@ -251,6 +251,17 @@
             font-size: 12px;
             z-index: 5;
         }
+
+        .music-indicator {
+            position: absolute;
+            top: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #ff69b4;
+            font-size: 10px;
+            z-index: 10;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -266,16 +277,26 @@
                 <span class="audio-status" id="audioStatus">READY</span>
             </div>
         </div>
+
+        <div class="music-indicator" id="musicIndicator">
+            <span id="currentTrack">♪ Last Goodbye ♪</span>
+        </div>
         
         <!-- Background Music -->
         <audio id="backgroundMusic" loop preload="auto">
             <source src="./public/last_goodbye.mp3" type="audio/mpeg">
             Your browser does not support the audio element.
         </audio>
+
+        <!-- Rage Mode Music -->
+        <audio id="rageMusic" loop preload="auto">
+            <source src="./public/MEGALOVANIA.mp3" type="audio/mpeg">
+            Your browser does not support the audio element.
+        </audio>
         
         <div class="stats">
             <div>HP: <span id="playerHP">20</span>/20</div>
-            <div>Cans HP: <span id="bossHP">100</span>/100</div>
+            <div>Cans HP: <span id="bossHP">250</span>/250</div>
         </div>
         
         <div class="attack-info" id="attackInfo">
@@ -298,6 +319,7 @@
             <p style="color: #87ceeb;">🔵 BLUE: Hurts only when moving</p>
             <p style="color: #ffa500;">🟠 ORANGE: Hurts only when still</p>
             <p>Choose your actions wisely during battle!</p>
+            <p style="color: #ff69b4;">Battle will be longer, but your choices will shape the music!</p>
             <p>Press SPACE to continue</p>
         </div>
         
@@ -351,9 +373,12 @@
         const restartButton = document.getElementById('restartButton');
         const attackTypeIndicator = document.getElementById('attackTypeIndicator');
         const attackTip = document.getElementById('attackTip');
+        const musicIndicator = document.getElementById('musicIndicator');
+        const currentTrack = document.getElementById('currentTrack');
         
         // Audio elements
         const backgroundMusic = document.getElementById('backgroundMusic');
+        const rageMusic = document.getElementById('rageMusic');
         const musicToggle = document.getElementById('musicToggle');
         const volumeSlider = document.getElementById('volumeSlider');
         const audioStatus = document.getElementById('audioStatus');
@@ -361,6 +386,8 @@
         // Audio state
         let musicPlaying = false;
         let musicMuted = false;
+        let currentMusic = backgroundMusic;
+        let musicPath = 'neutral'; // 'neutral', 'mercy', 'genocide'
         
         // Game state
         let gameState = 'intro'; // intro, menu, attack, dialogue, win, gameover, ending, death_animation, mercy_ending, kill_ending
@@ -375,8 +402,8 @@
             lastPosition: { x: 400, y: 300 }
         };
         let boss = { 
-            hp: 100, 
-            maxHP: 100, 
+            hp: 250, 
+            maxHP: 250, 
             phase: 0, 
             mood: 'aggressive',
             deathTimer: 0,
@@ -386,7 +413,10 @@
             attackPatterns: [],
             lastAttackTime: 0,
             consecutiveAttacks: 0,
-            enragedMode: false
+            enragedMode: false,
+            musicTriggered: false,
+            fightCount: 0,
+            mercyAttempts: 0
         };
         let attacks = [];
         let particles = [];
@@ -415,39 +445,88 @@
         // Audio Functions
         function initializeAudio() {
             backgroundMusic.volume = volumeSlider.value / 100;
+            rageMusic.volume = volumeSlider.value / 100;
             
-            backgroundMusic.addEventListener('loadstart', () => {
-                audioStatus.textContent = 'LOADING';
-                audioStatus.style.color = '#ffff00';
+            // Initialize both audio tracks
+            [backgroundMusic, rageMusic].forEach(audio => {
+                audio.addEventListener('loadstart', () => {
+                    if (audio === currentMusic) {
+                        audioStatus.textContent = 'LOADING';
+                        audioStatus.style.color = '#ffff00';
+                    }
+                });
+                
+                audio.addEventListener('canplay', () => {
+                    if (audio === currentMusic) {
+                        audioStatus.textContent = 'READY';
+                        audioStatus.style.color = '#00ff00';
+                    }
+                });
+                
+                audio.addEventListener('error', (e) => {
+                    if (audio === currentMusic) {
+                        audioStatus.textContent = 'ERROR';
+                        audioStatus.style.color = '#ff0000';
+                        console.error('Audio error:', e);
+                    }
+                });
+                
+                audio.addEventListener('play', () => {
+                    if (audio === currentMusic) {
+                        musicPlaying = true;
+                        audioStatus.textContent = 'PLAYING';
+                        audioStatus.style.color = '#00ff00';
+                    }
+                });
+                
+                audio.addEventListener('pause', () => {
+                    if (audio === currentMusic) {
+                        musicPlaying = false;
+                        audioStatus.textContent = 'PAUSED';
+                        audioStatus.style.color = '#ffff00';
+                    }
+                });
             });
-            
-            backgroundMusic.addEventListener('canplay', () => {
-                audioStatus.textContent = 'READY';
-                audioStatus.style.color = '#00ff00';
-            });
-            
-            backgroundMusic.addEventListener('error', (e) => {
-                audioStatus.textContent = 'ERROR';
-                audioStatus.style.color = '#ff0000';
-                console.error('Audio error:', e);
-            });
-            
-            backgroundMusic.addEventListener('play', () => {
-                musicPlaying = true;
-                audioStatus.textContent = 'PLAYING';
-                audioStatus.style.color = '#00ff00';
-            });
-            
-            backgroundMusic.addEventListener('pause', () => {
-                musicPlaying = false;
-                audioStatus.textContent = 'PAUSED';
-                audioStatus.style.color = '#ffff00';
-            });
+        }
+
+        function switchToRageMusic() {
+            if (!boss.musicTriggered && musicPath === 'genocide') {
+                boss.musicTriggered = true;
+                const currentVolume = currentMusic.volume;
+                
+                // Fade out current music
+                fadeOutMusic(1000, currentMusic);
+                
+                // Switch to rage music
+                setTimeout(() => {
+                    currentMusic = rageMusic;
+                    currentMusic.volume = 0;
+                    currentTrack.textContent = '♪ MEGALOVANIA ♪';
+                    currentTrack.style.color = '#ff0000';
+                    musicIndicator.style.animation = 'pulse 1s infinite';
+                    
+                    if (!musicMuted) {
+                        currentMusic.play().then(() => {
+                            // Fade in rage music
+                            const fadeStep = currentVolume / 20;
+                            const fadeInterval = setInterval(() => {
+                                if (currentMusic.volume < currentVolume) {
+                                    currentMusic.volume = Math.min(currentVolume, currentMusic.volume + fadeStep);
+                                } else {
+                                    clearInterval(fadeInterval);
+                                }
+                            }, 50);
+                        }).catch(error => {
+                            console.log('Error playing rage music:', error);
+                        });
+                    }
+                }, 1000);
+            }
         }
         
         function startMusic() {
-            if (!musicMuted && backgroundMusic.readyState >= 2) {
-                const playPromise = backgroundMusic.play();
+            if (!musicMuted && currentMusic.readyState >= 2) {
+                const playPromise = currentMusic.play();
                 if (playPromise !== undefined) {
                     playPromise.then(() => {
                         console.log('Music started successfully');
@@ -463,12 +542,14 @@
         function stopMusic() {
             backgroundMusic.pause();
             backgroundMusic.currentTime = 0;
+            rageMusic.pause();
+            rageMusic.currentTime = 0;
         }
         
         function toggleMusic() {
             musicMuted = !musicMuted;
             if (musicMuted) {
-                backgroundMusic.pause();
+                currentMusic.pause();
                 musicToggle.textContent = '🔇 UNMUTE';
                 audioStatus.textContent = 'MUTED';
                 audioStatus.style.color = '#ff0000';
@@ -480,32 +561,34 @@
         
         function updateVolume() {
             backgroundMusic.volume = volumeSlider.value / 100;
+            rageMusic.volume = volumeSlider.value / 100;
         }
         
-        function fadeOutMusic(duration = 2000) {
-            const startVolume = backgroundMusic.volume;
+        function fadeOutMusic(duration = 2000, targetMusic = null) {
+            const music = targetMusic || currentMusic;
+            const startVolume = music.volume;
             const fadeStep = startVolume / (duration / 50);
             
             const fadeInterval = setInterval(() => {
-                if (backgroundMusic.volume > 0) {
-                    backgroundMusic.volume = Math.max(0, backgroundMusic.volume - fadeStep);
+                if (music.volume > 0) {
+                    music.volume = Math.max(0, music.volume - fadeStep);
                 } else {
                     clearInterval(fadeInterval);
-                    backgroundMusic.pause();
+                    music.pause();
                 }
             }, 50);
         }
         
         function fadeInMusic(duration = 2000) {
             const targetVolume = volumeSlider.value / 100;
-            backgroundMusic.volume = 0;
+            currentMusic.volume = 0;
             if (!musicMuted) {
                 startMusic();
                 const fadeStep = targetVolume / (duration / 50);
                 
                 const fadeInterval = setInterval(() => {
-                    if (backgroundMusic.volume < targetVolume) {
-                        backgroundMusic.volume = Math.min(targetVolume, backgroundMusic.volume + fadeStep);
+                    if (currentMusic.volume < targetVolume) {
+                        currentMusic.volume = Math.min(targetVolume, currentMusic.volume + fadeStep);
                     } else {
                         clearInterval(fadeInterval);
                     }
@@ -531,6 +614,14 @@
             "* *sniff sniff* you wouldn't happen to have treats, would you?",
             "* fine, fine... you're alright for a human i suppose",
             "* *purrs reluctantly* maybe we can share the sunny spot on the carpet"
+        ];
+
+        const rageDialogues = [
+            "* MROW!! You dare to hurt me?!",
+            "* *fur stands on end* I'll show you true cat fury!",
+            "* You've made a terrible mistake, human...",
+            "* *eyes glow with otherworldly power* Time to get serious!",
+            "* No more playing around... PREPARE FOR MY ULTIMATE FORM!"
         ];
 
         // Different ending dialogue sequences
@@ -590,7 +681,9 @@
             'healingTreats': 'Compassionate Treats',
             'comboAttack': 'Ultimate Cat Combo',
             'enragedSwipe': 'Enraged Claw Storm',
-            'phaseTransition': 'Tactical Repositioning'
+            'phaseTransition': 'Tactical Repositioning',
+            'megalovania': 'MEGALO-PAW-NIA',
+            'determination': 'Feline Determination'
         };
 
         // Restart functionality
@@ -612,8 +705,8 @@
                 lastPosition: { x: 400, y: 300 }
             };
             boss = { 
-                hp: 100, 
-                maxHP: 100, 
+                hp: 250, 
+                maxHP: 250, 
                 phase: 0, 
                 mood: 'aggressive',
                 deathTimer: 0,
@@ -623,7 +716,10 @@
                 attackPatterns: [],
                 lastAttackTime: 0,
                 consecutiveAttacks: 0,
-                enragedMode: false
+                enragedMode: false,
+                musicTriggered: false,
+                fightCount: 0,
+                mercyAttempts: 0
             };
             attacks = [];
             particles = [];
@@ -638,6 +734,7 @@
             endingType = 'none';
             playerDeathTimer = 0;
             attackPhaseTimer = 0;
+            musicPath = 'neutral';
 
             // Clear canvas completely
             ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -670,6 +767,10 @@
 
             // Reset audio
             stopMusic();
+            currentMusic = backgroundMusic;
+            currentTrack.textContent = '♪ Last Goodbye ♪';
+            currentTrack.style.color = '#ff69b4';
+            musicIndicator.style.animation = 'none';
             volumeSlider.value = 50;
             updateVolume();
             musicMuted = false;
@@ -755,15 +856,25 @@
             
             switch(action) {
                 case 'fight':
-                    const damage = Math.floor(Math.random() * 15) + 10;
+                    boss.fightCount++;
+                    const damage = Math.floor(Math.random() * 8) + 5; // Reduced from 10-25 to 5-12
                     boss.hp = Math.max(0, boss.hp - damage);
-                    dialogueMessage = `* You scratch Cans for ${damage} damage! They look ${boss.hp <= 30 ? 'severely wounded' : 'annoyed but impressed'}.`;
+                    dialogueMessage = `* You scratch Cans for ${damage} damage! They look ${boss.hp <= 50 ? 'severely wounded' : 'annoyed but impressed'}.`;
+                    
+                    // Set music path to genocide on first fight
+                    if (boss.fightCount === 1 && musicPath === 'neutral') {
+                        musicPath = 'genocide';
+                    }
                     
                     // Boss gets more aggressive when hurt
-                    if (boss.hp <= 50) {
+                    if (boss.hp <= 125 && !boss.enragedMode) { // Adjusted for higher HP
                         boss.mood = 'enraged';
                         boss.enragedMode = true;
-                    } else {
+                        if (musicPath === 'genocide') {
+                            dialogueMessage += '\n' + rageDialogues[Math.floor(Math.random() * rageDialogues.length)];
+                            switchToRageMusic();
+                        }
+                    } else if (boss.hp <= 175) {
                         boss.mood = 'annoyed';
                     }
                     break;
@@ -776,14 +887,22 @@
                     dialogueMessage = handleItemMenu();
                     break;
                 case 'mercy':
-                    if (boss.hp < 30 || boss.mood === 'friendly') {
+                    boss.mercyAttempts++;
+                    if (boss.mercyAttempts === 1 && musicPath === 'neutral') {
+                        musicPath = 'mercy';
+                    }
+                    
+                    if (boss.hp < 75 || boss.mood === 'friendly' || boss.mercyAttempts >= 5) {
                         dialogueMessage = "* Cans accepts your mercy. They curl up and start purring.";
                         endingType = 'mercy';
                         startEnding();
                         shouldContinue = false;
                     } else {
                         dialogueMessage = "* Cans is not ready to forgive your trespassing yet. *hisses*";
-                        boss.mood = 'annoyed';
+                        if (boss.mercyAttempts >= 3) {
+                            dialogueMessage += "\n* But they seem to be warming up to you...";
+                            boss.mood = 'curious';
+                        }
                     }
                     break;
             }
@@ -954,13 +1073,13 @@
             player.y = battleBox.y + battleBox.height / 2;
             player.lastPosition = { x: player.x, y: player.y };
             
-            boss.phase = Math.floor((boss.maxHP - boss.hp) / 20) + 1;
+            boss.phase = Math.floor((boss.maxHP - boss.hp) / 50) + 1;
             currentPhaseSpan.textContent = boss.phase;
             
             attackTypeIndicator.style.display = 'block';
             
-            // Attack phase lasts 5-7 seconds based on boss health
-            const phaseDuration = boss.hp > 50 ? 5000 : (boss.hp > 25 ? 6000 : 7000);
+            // Attack phase lasts 5-8 seconds based on boss health
+            const phaseDuration = boss.hp > 125 ? 5000 : (boss.hp > 75 ? 6500 : 8000);
             setTimeout(() => {
                 endAttackPhase();
             }, phaseDuration);
@@ -1025,7 +1144,11 @@
                 attackPool = ['healingTreats', 'catnip', 'treats'];
                 attackTypeUsed = 'green';
             } else if (boss.mood === 'enraged' || boss.enragedMode) {
-                attackPool = ['enragedSwipe', 'comboAttack', 'blueBones', 'orangeZoomies'];
+                if (musicPath === 'genocide') {
+                    attackPool = ['megalovania', 'determination', 'enragedSwipe', 'comboAttack', 'blueBones', 'orangeZoomies'];
+                } else {
+                    attackPool = ['enragedSwipe', 'comboAttack', 'blueBones', 'orangeZoomies'];
+                }
                 attackTypeUsed = 'mixed';
             }
             
@@ -1075,6 +1198,8 @@
                 case 'orangeZoomies': createOrangeZoomiesAttack(); break;
                 case 'healingTreats': createHealingTreatsAttack(); break;
                 case 'enragedSwipe': createEnragedSwipeAttack(); break;
+                case 'megalovania': createMegalovaniaAttack(); break;
+                case 'determination': createDeterminationAttack(); break;
                 default: createYarnBallAttack();
             }
         }
@@ -1088,6 +1213,73 @@
             setTimeout(() => createPawSwipeAttack(), 1600);
             if (boss.phase >= 5) {
                 setTimeout(() => createBlueBonesAttack(), 2400);
+            }
+        }
+
+        // New special attacks for rage mode
+        function createMegalovaniaAttack() {
+            // Special attack pattern inspired by Sans
+            const patterns = [
+                // Bone wall from bottom
+                () => {
+                    for (let i = 0; i < 8; i++) {
+                        attacks.push({
+                            type: 'megalovania',
+                            x: battleBox.x + i * 80 + 20,
+                            y: battleBox.y + battleBox.height,
+                            dx: 0,
+                            dy: -6,
+                            size: 15,
+                            color: '#87ceeb',
+                            attackColor: 'blue',
+                            height: 60
+                        });
+                    }
+                },
+                // Circling bones
+                () => {
+                    for (let i = 0; i < 12; i++) {
+                        const angle = (i / 12) * Math.PI * 2;
+                        const radius = 150;
+                        attacks.push({
+                            type: 'megalovania',
+                            x: battleBox.x + battleBox.width/2 + Math.cos(angle) * radius,
+                            y: battleBox.y + battleBox.height/2 + Math.sin(angle) * radius,
+                            targetX: battleBox.x + battleBox.width/2,
+                            targetY: battleBox.y + battleBox.height/2,
+                            size: 12,
+                            color: '#ffa500',
+                            attackColor: 'orange',
+                            speed: 3
+                        });
+                    }
+                }
+            ];
+            
+            patterns[Math.floor(Math.random() * patterns.length)]();
+        }
+
+        function createDeterminationAttack() {
+            // Attack that gets stronger the lower boss HP is
+            const intensity = 1 + (1 - boss.hp / boss.maxHP) * 2;
+            
+            for (let i = 0; i < 5 * intensity; i++) {
+                setTimeout(() => {
+                    const side = Math.random() < 0.5 ? 'left' : 'right';
+                    const startX = side === 'left' ? battleBox.x - 20 : battleBox.x + battleBox.width + 20;
+                    
+                    attacks.push({
+                        type: 'determination',
+                        x: startX,
+                        y: battleBox.y + Math.random() * battleBox.height,
+                        dx: side === 'left' ? 8 : -8,
+                        dy: 0,
+                        size: 8,
+                        color: '#ff0000',
+                        attackColor: 'white',
+                        trail: []
+                    });
+                }, i * 200);
             }
         }
         
@@ -1599,8 +1791,14 @@
             // Cat body - color changes based on mood and health
             let bodyColor = '#888';
             if (boss.mood === 'friendly') bodyColor = '#AAA';
-            if (boss.mood === 'enraged' || boss.enragedMode) bodyColor = '#666';
-            if (boss.hp <= 25) bodyColor = '#555';
+            if (boss.mood === 'enraged' || boss.enragedMode) {
+                if (musicPath === 'genocide') {
+                    bodyColor = '#444'; // Darker for genocide route
+                } else {
+                    bodyColor = '#666';
+                }
+            }
+            if (boss.hp <= 50) bodyColor = '#555';
             
             ctx.fillStyle = bodyColor;
             ctx.fillRect(centerX - 40, centerY + bodyOffset, 80, 60);
@@ -1625,9 +1823,15 @@
             
             // Cat eyes - change based on mood and health
             let eyeColor = '#00ff00';
-            if (boss.mood === 'enraged' || boss.enragedMode) eyeColor = '#ff4500';
+            if (boss.mood === 'enraged' || boss.enragedMode) {
+                if (musicPath === 'genocide') {
+                    eyeColor = '#ff0000'; // Red eyes for genocide route
+                } else {
+                    eyeColor = '#ff4500';
+                }
+            }
             if (boss.mood === 'friendly') eyeColor = '#00ff00';
-            if (boss.hp <= 25) eyeColor = '#ffff00';
+            if (boss.hp <= 50) eyeColor = '#ffff00';
             
             ctx.fillStyle = eyeColor;
             ctx.fillRect(centerX - 20, centerY - 30 + bodyOffset, 8, 8);
@@ -1667,6 +1871,15 @@
                 ctx.moveTo(centerX + 40, centerY - 30);
                 ctx.lineTo(centerX + 50, centerY - 20);
                 ctx.stroke();
+
+                // Extra effects for genocide route
+                if (musicPath === 'genocide' && boss.musicTriggered) {
+                    ctx.strokeStyle = '#ff0000';
+                    ctx.lineWidth = 2;
+                    ctx.globalAlpha = 0.5;
+                    ctx.strokeRect(centerX - 60, centerY - 60, 120, 120);
+                    ctx.globalAlpha = boss.opacity;
+                }
             }
             
             ctx.restore();
@@ -1759,6 +1972,28 @@
                         const angle = Math.atan2(attack.targetY - attack.y, attack.targetX - attack.x);
                         attack.x += Math.cos(angle) * attack.speed;
                         attack.y += Math.sin(angle) * attack.speed;
+                        break;
+
+                    case 'megalovania':
+                        if (attack.targetX !== undefined) {
+                            const angle = Math.atan2(attack.targetY - attack.y, attack.targetX - attack.x);
+                            attack.x += Math.cos(angle) * attack.speed;
+                            attack.y += Math.sin(angle) * attack.speed;
+                        } else {
+                            attack.x += attack.dx || 0;
+                            attack.y += attack.dy || 0;
+                        }
+                        break;
+
+                    case 'determination':
+                        attack.x += attack.dx;
+                        attack.y += attack.dy;
+                        if (attack.trail) {
+                            attack.trail.push({x: attack.x, y: attack.y});
+                            if (attack.trail.length > 5) {
+                                attack.trail.shift();
+                            }
+                        }
                         break;
                         
                     case 'string':
@@ -1861,6 +2096,40 @@
                     ctx.moveTo(attack.x + attack.size/2, attack.y);
                     ctx.lineTo(attack.x + attack.size, attack.y + attack.size/2);
                     ctx.stroke();
+                    break;
+
+                case 'megalovania':
+                    if (attack.height) {
+                        // Bone-like attack
+                        ctx.fillRect(attack.x - attack.size/2, attack.y, attack.size, attack.height);
+                        ctx.strokeStyle = '#4169e1';
+                        ctx.lineWidth = 2;
+                        ctx.strokeRect(attack.x - attack.size/2, attack.y, attack.size, attack.height);
+                    } else {
+                        // Circular projectile
+                        ctx.beginPath();
+                        ctx.arc(attack.x, attack.y, attack.size/2, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.strokeStyle = attack.attackColor === 'blue' ? '#4169e1' : '#ff8c00';
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+                    }
+                    break;
+
+                case 'determination':
+                    if (attack.trail && attack.trail.length > 1) {
+                        ctx.strokeStyle = attack.color;
+                        ctx.lineWidth = attack.size;
+                        ctx.beginPath();
+                        ctx.moveTo(attack.trail[0].x, attack.trail[0].y);
+                        for (let j = 1; j < attack.trail.length; j++) {
+                            ctx.lineTo(attack.trail[j].x, attack.trail[j].y);
+                        }
+                        ctx.stroke();
+                    }
+                    ctx.beginPath();
+                    ctx.arc(attack.x, attack.y, attack.size/2, 0, Math.PI * 2);
+                    ctx.fill();
                     break;
                     
                 case 'string':
@@ -2053,6 +2322,10 @@
                     break;
                 case 'enragedSwipe':
                     damage = 3;
+                    break;
+                case 'megalovania':
+                case 'determination':
+                    damage = 2;
                     break;
                 case 'treats':
                     if (boss.mood !== 'friendly') {
