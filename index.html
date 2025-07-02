@@ -639,21 +639,47 @@
             playerDeathTimer = 0;
             attackPhaseTimer = 0;
 
-            // Hide ending overlay and show instructions
+            // Clear canvas completely
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Hide ALL UI elements first
             endingOverlay.style.display = 'none';
             victoryText.style.display = 'none';
             gameoverText.style.display = 'none';
-            instructions.style.display = 'block';
             dialogue.style.display = 'none';
             menu.style.display = 'none';
             menuInstructions.style.display = 'none';
+            attackInfo.style.display = 'block'; // Show attack info again
+            attackTypeIndicator.style.display = 'none';
+            
+            // Reset menu selection
+            const buttons = document.querySelectorAll('.menu-button');
+            buttons.forEach((button) => {
+                button.classList.remove('selected');
+            });
+            
+            // Show instructions
+            instructions.style.display = 'block';
+            
+            // Reset phase and attack displays
+            currentPhaseSpan.textContent = '1';
+            currentAttackSpan.textContent = 'Preparing...';
+            attackTip.textContent = 'Move to dodge white attacks!';
 
             // Reset audio
             stopMusic();
             volumeSlider.value = 50;
             updateVolume();
+            musicMuted = false;
+            musicToggle.textContent = '🔊 MUTE';
 
+            // Update stats display
             updateStats();
+            
+            // Clear any status effects display
+            statusEffect.textContent = '';
         }
         
         // Input handling
