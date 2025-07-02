@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Whiskers - The Ultimate Cat Boss Fight</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            color: #fff;
+            font-family: 'Courier New', monospace;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        
+        #gameContainer {
+            width: 800px;
+            height: 600px;
+            background: #000;
+            border: 4px solid #fff;
+            position: relative;
+        }
+        
+        #gameCanvas {
+            width: 100%;
+            height: 100%;
+            background: #000;
+        }
+        
+        .dialogue-box {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            right: 10px;
+            height: 120px;
+            background: #000;
+            border: 3px solid #fff;
+            padding: 10px;
+            box-sizing: border-box;
+            display: none;
+        }
+        
+        .dialogue-text {
+            color: #fff;
+            font-size: 16px;
+            line-height: 1.4;
+        }
+        
+        .menu {
+            position: absolute;
+            bottom: 140px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: none;
+        }
+        
+        .menu-button {
+            display: inline-block;
+            margin: 0 10px;
+            padding: 10px 20px;
+            border: 2px solid #fff;
+            background: #000;
+            color: #fff;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+        
+        .menu-button:hover, .menu-button.selected {
+            background: #fff;
+            color: #000;
+        }
+        
+        .stats {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: #fff;
+            font-size: 14px;
+        }
+        
+        #instructions {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: #fff;
+            font-size: 18px;
+            z-index: 100;
+        }
+        
+        .fade-out {
+            opacity: 0;
+            transition: opacity 2s;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        
+        <div class="stats">
+            <div>HP: <span id="playerHP">20</span>/20</div>
+            <div>Whiskers HP: <span id="bossHP">100</span>/100</div>
+        </div>
+        
+        <div id="instructions">
+            <h2>🐱 WHISKERS - THE ULTIMATE CAT 🐱</h2>
+            <p>Use ARROW KEYS or WASD to move your heart and dodge attacks!</p>
+            <p>Press SPACE to continue</p>
+        </div>
+        
+        <div class="menu" id="menu">
+            <div class="menu-button" data-action="fight">FIGHT</div>
+            <div class="menu-button" data-action="act">ACT</div>
+            <div class="menu-button" data-action="item">ITEM</div>
+            <div class="menu-button" data-action="mercy">MERCY</div>
+        </div>
+        
+        <div class="dialogue-box" id="dialogue">
+            <div class="dialogue-text" id="dialogueText"></div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const dialogue = document.getElementById('dialogue');
+        const dialogueText = document.getElementById('dialogueText');
+        const menu = document.getElementById('menu');
+        const instructions = document.getElementById('instructions');
+        const playerHPSpan = document.getElementById('playerHP');
+        const bossHPSpan = document.getElementById('bossHP');
+        
+        // Game state
+        let gameState = 'intro'; // intro, menu, attack, dialogue
+        let player = { x: 400, y: 300, size: 8, hp: 20, maxHP: 20 };
+        let boss = { hp: 100, maxHP: 100, phase: 0 };
+        let attacks = [];
+        let particles = [];
+        let keys = {};
+        let selectedMenuItem = 0;
+        let battleBox = { x: 150, y: 200, width: 500, height: 200 };
+        let attackTimer = 0;
+        let dialogues = [];
+        let currentDialogue = 0;
+        let turnCounter = 0;
+        
+        // Cat boss dialogues
+        const bossDialogues = [
+            "* Whiskers appears, fur bristling with determination!",
+            "* mrow... you think you can defeat me, human?",
+            "* i've knocked things off tables for YEARS...",
+            "* time to show you my true power... *stretches*",
+            "* purrpare yourself for the ultimate cat attack!",
+            "* *yawn* this is getting boring... maybe i'll nap instead",
+            "* wait... do you have... TREATS?!",
+            "* fine, fine... you're not so bad for a human",
+            "* *purrs* maybe we can be friends after all..."
+        ];
+        
+        // Input handling
+        document.addEventListener('keydown', (e) => {
+            keys[e.key.toLowerCase()] = true;
+            
+            if (gameState === 'intro' && e.code === 'Space') {
+                startGame();
+            } else if (gameState === 'menu') {
+                handleMenuInput(e);
+            } else if (gameState === 'dialogue' && e.code === 'Space') {
+                nextDialogue();
+            }
+        });
+        
+        document.addEventListener('keyup', (e) => {
+            keys[e.key.toLowerCase()] = false;
+        });
+        
+        // Menu handling
+        document.querySelectorAll('.menu-button').forEach((button, index) => {
+            button.addEventListener('click', () => {
+                selectedMenuItem = index;
+                selectMenuItem();
+            });
+        });
+        
+        function handleMenuInput(e) {
+            if (e.key === 'ArrowLeft' && selectedMenuItem > 0) {
+                selectedMenuItem--;
+                updateMenuSelection();
+            } else if (e.key === 'ArrowRight' && selectedMenuItem < 3) {
+                selectedMenuItem++;
+                updateMenuSelection();
+            } else if (e.code === 'Space' || e.key === 'Enter') {
+                selectMenuItem();
+            }
+        }
+        
+        function updateMenuSelection() {
+            const buttons = document.querySelectorAll('.menu-button');
+            buttons.forEach((button, index) => {
+                button.classList.toggle('selected', index === selectedMenuItem);
+            });
+        }
+        
+        function selectMenuItem() {
+            const actions = ['fight', 'act', 'item', 'mercy'];
+            const action = actions[selectedMenuItem];
+            
+            switch(action) {
+                case 'fight':
+                    const damage = Math.floor(Math.random() * 15) + 10;
+                    boss.hp = Math.max(0, boss.hp - damage);
+                    showDialogue(`* You scratch Whiskers for ${damage} damage!`);
+                    break;
+                case 'act':
+                    showDialogue("* You try to pet Whiskers. They seem confused but pleased.");
+                    break;
+                case 'item':
+                    if (player.hp < player.maxHP) {
+                        player.hp = Math.min(player.maxHP, player.hp + 5);
+                        showDialogue("* You eat some cat treats. HP restored!");
+                    } else {
+                        showDialogue("* You're already at full HP!");
+                    }
+                    break;
+                case 'mercy':
+                    if (boss.hp < 30) {
+                        showDialogue("* Whiskers accepts your mercy. You win!");
+                        gameState = 'win';
+                    } else {
+                        showDialogue("* Whiskers is not ready to forgive your trespassing yet.");
+                    }
+                    break;
+            }
+            
+            updateStats();
+            if (boss.hp <= 0) {
+                gameState = 'win';
+                showDialogue("* Whiskers has been defeated! They curl up for a nap.");
+            }
+        }
+        
+        function startGame() {
+            instructions.style.display = 'none';
+            gameState = 'dialogue';
+            showDialogue(bossDialogues[0]);
+        }
+        
+        function showDialogue(text) {
+            gameState = 'dialogue';
+            dialogue.style.display = 'block';
+            menu.style.display = 'none';
+            dialogueText.textContent = text;
+        }
+        
+        function nextDialogue() {
+            if (gameState === 'win') return;
+            
+            dialogue.style.display = 'none';
+            if (boss.hp <= 0) return;
+            
+            gameState = 'attack';
+            startAttackPhase();
+        }
+        
+        function startAttackPhase() {
+            attacks = [];
+            particles = [];
+            attackTimer = 0;
+            
+            // Reset player position to center of battle box
+            player.x = battleBox.x + battleBox.width / 2;
+            player.y = battleBox.y + battleBox.height / 2;
+            
+            // Start attack pattern based on boss phase
+            boss.phase = Math.floor((boss.maxHP - boss.hp) / 20);
+            setTimeout(() => {
+                endAttackPhase();
+            }, 4000); // 4 seconds of attacks
+        }
+        
+        function endAttackPhase() {
+            attacks = [];
+            gameState = 'menu';
+            menu.style.display = 'block';
+            selectedMenuItem = 0;
+            updateMenuSelection();
+            turnCounter++;
+            
+            // Boss dialogue
+            if (turnCounter < bossDialogues.length) {
+                setTimeout(() => {
+                    showDialogue(bossDialogues[turnCounter]);
+                }, 500);
+            }
+        }
+        
+        function updateStats() {
+            playerHPSpan.textContent = player.hp;
+            bossHPSpan.textContent = boss.hp;
+        }
+        
+        // Attack patterns
+        function createYarnBallAttack() {
+            for (let i = 0; i < 3; i++) {
+                attacks.push({
+                    type: 'yarnball',
+                    x: Math.random() * battleBox.width + battleBox.x,
+                    y: battleBox.y - 20,
+                    dx: (Math.random() - 0.5) * 2,
+                    dy: 2 + Math.random() * 2,
+                    size: 12,
+                    color: '#ff69b4'
+                });
+            }
+        }
+        
+        function createFishBoneAttack() {
+            const side = Math.random() < 0.5 ? 'left' : 'right';
+            const startX = side === 'left' ? battleBox.x - 20 : battleBox.x + battleBox.width + 20;
+            
+            for (let i = 0; i < 5; i++) {
+                attacks.push({
+                    type: 'fishbone',
+                    x: startX,
+                    y: battleBox.y + i * 40 + 20,
+                    dx: side === 'left' ? 3 : -3,
+                    dy: 0,
+                    size: 8,
+                    color: '#ffd700'
+                });
+            }
+        }
+        
+        function createPawSwipeAttack() {
+            const targetX = player.x;
+            const targetY = player.y;
+            
+            // Warning indicator
+            particles.push({
+                type: 'warning',
+                x: targetX,
+                y: targetY,
+                timer: 60,
+                size: 30,
+                color: '#ff0000'
+            });
+            
+            setTimeout(() => {
+                attacks.push({
+                    type: 'pawswipe',
+                    x: targetX - 25,
+                    y: targetY - 25,
+                    size: 50,
+                    timer: 30,
+                    color: '#8b4513'
+                });
+            }, 1000);
+        }
+        
+        function createLaserPointerAttack() {
+            const angle = Math.atan2(player.y - (battleBox.y + battleBox.height/2), 
+                                   player.x - (battleBox.x + battleBox.width/2));
+            
+            attacks.push({
+                type: 'laser',
+                x: battleBox.x + battleBox.width/2,
+                y: battleBox.y + battleBox.height/2,
+                dx: Math.cos(angle) * 4,
+                dy: Math.sin(angle) * 4,
+                size: 6,
+                color: '#ff0000',
+                trail: []
+            });
+        }
+        
+        // Game loop
+        function gameLoop() {
+            // Clear canvas
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw battle box
+            if (gameState === 'attack') {
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 3;
+                ctx.strokeRect(battleBox.x, battleBox.y, battleBox.width, battleBox.height);
+            }
+            
+            // Draw cat boss
+            drawCatBoss();
+            
+            if (gameState === 'attack') {
+                // Update player
+                updatePlayer();
+                
+                // Generate attacks
+                attackTimer++;
+                if (attackTimer % 90 === 0) { // Every 1.5 seconds
+                    const attackType = Math.floor(Math.random() * 4);
+                    switch(attackType) {
+                        case 0: createYarnBallAttack(); break;
+                        case 1: createFishBoneAttack(); break;
+                        case 2: createPawSwipeAttack(); break;
+                        case 3: createLaserPointerAttack(); break;
+                    }
+                }
+                
+                // Update attacks
+                updateAttacks();
+                
+                // Update particles
+                updateParticles();
+                
+                // Draw player (heart)
+                drawPlayer();
+                
+                // Check collisions
+                checkCollisions();
+            }
+            
+            requestAnimationFrame(gameLoop);
+        }
+        
+        function drawCatBoss() {
+            const centerX = canvas.width / 2;
+            const centerY = 100;
+            
+            // Cat body
+            ctx.fillStyle = '#888';
+            ctx.fillRect(centerX - 40, centerY, 80, 60);
+            
+            // Cat head
+            ctx.fillStyle = '#888';
+            ctx.fillRect(centerX - 30, centerY - 40, 60, 40);
+            
+            // Cat ears
+            ctx.fillStyle = '#666';
+            ctx.beginPath();
+            ctx.moveTo(centerX - 25, centerY - 40);
+            ctx.lineTo(centerX - 15, centerY - 55);
+            ctx.lineTo(centerX - 5, centerY - 40);
+            ctx.fill();
+            
+            ctx.beginPath();
+            ctx.moveTo(centerX + 5, centerY - 40);
+            ctx.lineTo(centerX + 15, centerY - 55);
+            ctx.lineTo(centerX + 25, centerY - 40);
+            ctx.fill();
+            
+            // Cat eyes
+            ctx.fillStyle = '#00ff00';
+            ctx.fillRect(centerX - 20, centerY - 30, 8, 8);
+            ctx.fillRect(centerX + 12, centerY - 30, 8, 8);
+            
+            // Cat pupils
+            ctx.fillStyle = '#000';
+            ctx.fillRect(centerX - 18, centerY - 28, 2, 4);
+            ctx.fillRect(centerX + 14, centerY - 28, 2, 4);
+            
+            // Cat tail
+            ctx.fillStyle = '#888';
+            const tailSway = Math.sin(Date.now() * 0.01) * 10;
+            ctx.fillRect(centerX + 40, centerY + 20, 30 + tailSway, 8);
+        }
+        
+        function updatePlayer() {
+            const speed = 3;
+            
+            if ((keys['arrowleft'] || keys['a']) && player.x > battleBox.x + player.size) {
+                player.x -= speed;
+            }
+            if ((keys['arrowright'] || keys['d']) && player.x < battleBox.x + battleBox.width - player.size) {
+                player.x += speed;
+            }
+            if ((keys['arrowup'] || keys['w']) && player.y > battleBox.y + player.size) {
+                player.y -= speed;
+            }
+            if ((keys['arrowdown'] || keys['s']) && player.y < battleBox.y + battleBox.height - player.size) {
+                player.y += speed;
+            }
+        }
+        
+        function drawPlayer() {
+            // Draw heart
+            ctx.fillStyle = '#ff0000';
+            const size = player.size;
+            
+            ctx.beginPath();
+            ctx.moveTo(player.x, player.y + size/2);
+            ctx.bezierCurveTo(player.x, player.y, player.x - size/2, player.y, player.x - size/2, player.y + size/4);
+            ctx.bezierCurveTo(player.x - size/2, player.y + size/2, player.x, player.y + size/2, player.x, player.y + size);
+            ctx.bezierCurveTo(player.x, player.y + size/2, player.x + size/2, player.y + size/2, player.x + size/2, player.y + size/4);
+            ctx.bezierCurveTo(player.x + size/2, player.y, player.x, player.y, player.x, player.y + size/2);
+            ctx.fill();
+        }
+        
+        function updateAttacks() {
+            for (let i = attacks.length - 1; i >= 0; i--) {
+                const attack = attacks[i];
+                
+                attack.x += attack.dx;
+                attack.y += attack.dy;
+                
+                // Remove attacks that are off screen
+                if (attack.x < -50 || attack.x > canvas.width + 50 || 
+                    attack.y < -50 || attack.y > canvas.height + 50) {
+                    attacks.splice(i, 1);
+                    continue;
+                }
+                
+                // Handle specific attack types
+                if (attack.type === 'pawswipe') {
+                    attack.timer--;
+                    if (attack.timer <= 0) {
+                        attacks.splice(i, 1);
+                        continue;
+                    }
+                }
+                
+                if (attack.type === 'laser' && attack.trail) {
+                    attack.trail.push({x: attack.x, y: attack.y});
+                    if (attack.trail.length > 10) {
+                        attack.trail.shift();
+                    }
+                }
+                
+                // Draw attack
+                ctx.fillStyle = attack.color;
+                if (attack.type === 'yarnball') {
+                    ctx.beginPath();
+                    ctx.arc(attack.x, attack.y, attack.size/2, 0, Math.PI * 2);
+                    ctx.fill();
+                } else if (attack.type === 'laser') {
+                    // Draw laser trail
+                    ctx.strokeStyle = attack.color;
+                    ctx.lineWidth = attack.size;
+                    ctx.beginPath();
+                    for (let j = 0; j < attack.trail.length; j++) {
+                        if (j === 0) {
+                            ctx.moveTo(attack.trail[j].x, attack.trail[j].y);
+                        } else {
+                            ctx.lineTo(attack.trail[j].x, attack.trail[j].y);
+                        }
+                    }
+                    ctx.stroke();
+                    
+                    ctx.beginPath();
+                    ctx.arc(attack.x, attack.y, attack.size/2, 0, Math.PI * 2);
+                    ctx.fill();
+                } else {
+                    ctx.fillRect(attack.x - attack.size/2, attack.y - attack.size/2, attack.size, attack.size);
+                }
+            }
+        }
+        
+        function updateParticles() {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const particle = particles[i];
+                particle.timer--;
+                
+                if (particle.timer <= 0) {
+                    particles.splice(i, 1);
+                    continue;
+                }
+                
+                if (particle.type === 'warning') {
+                    ctx.strokeStyle = particle.color;
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(particle.x - particle.size/2, particle.y - particle.size/2, 
+                                 particle.size, particle.size);
+                }
+            }
+        }
+        
+        function checkCollisions() {
+            for (let attack of attacks) {
+                const distance = Math.sqrt(
+                    Math.pow(player.x - attack.x, 2) + Math.pow(player.y - attack.y, 2)
+                );
+                
+                if (distance < player.size + attack.size/2) {
+                    // Player hit!
+                    player.hp = Math.max(0, player.hp - 1);
+                    updateStats();
+                    
+                    if (player.hp <= 0) {
+                        gameState = 'gameover';
+                        showDialogue("* You have been defeated by Whiskers! GAME OVER");
+                    }
+                    
+                    // Remove the attack
+                    attacks.splice(attacks.indexOf(attack), 1);
+                    break;
+                }
+            }
+        }
+        
+        // Start the game
+        gameLoop();
+    </script>
+</body>
+</html>
