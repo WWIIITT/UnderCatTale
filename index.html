@@ -262,6 +262,23 @@
             z-index: 10;
             text-align: center;
         }
+
+        .rage-mode-indicator {
+            position: absolute;
+            top: 60px;
+            right: 10px;
+            color: #ff0000;
+            font-size: 14px;
+            z-index: 5;
+            display: none;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
     </style>
 </head>
 <body>
@@ -306,6 +323,10 @@
 
         <div class="attack-type-indicator" id="attackTypeIndicator">
             <div>TIP: <span id="attackTip">Move to dodge white attacks!</span></div>
+        </div>
+
+        <div class="rage-mode-indicator" id="rageModeIndicator">
+            RAGE MODE ACTIVE!
         </div>
         
         <div class="status-effect" id="statusEffect"></div>
@@ -375,6 +396,7 @@
         const attackTip = document.getElementById('attackTip');
         const musicIndicator = document.getElementById('musicIndicator');
         const currentTrack = document.getElementById('currentTrack');
+        const rageModeIndicator = document.getElementById('rageModeIndicator');
         
         // Audio elements
         const backgroundMusic = document.getElementById('backgroundMusic');
@@ -416,7 +438,8 @@
             enragedMode: false,
             musicTriggered: false,
             fightCount: 0,
-            mercyAttempts: 0
+            mercyAttempts: 0,
+            rageHealingBonus: false
         };
         let attacks = [];
         let particles = [];
@@ -426,12 +449,13 @@
         let attackTimer = 0;
         let currentAttackType = '';
         let turnCounter = 0;
-        let playerItems = { treats: 3, catnip: 1 };
+        let playerItems = { treats: 3, catnip: 1, emergencyHeal: 0 };
         let actionSelected = false;
         let endingDialogueIndex = 0;
         let endingType = 'none'; // 'mercy', 'kill'
         let playerDeathTimer = 0;
         let attackPhaseTimer = 0;
+        let gameLoopId = null;
         
         // Attack type tips
         const attackTips = {
@@ -439,7 +463,8 @@
             'green': 'Touch green to heal!',
             'blue': 'Stand still to avoid blue attacks!',
             'orange': 'Keep moving to avoid orange attacks!',
-            'mixed': 'Multiple attack types incoming!'
+            'mixed': 'Multiple attack types incoming!',
+            'healing': 'Healing opportunities available!'
         };
 
         // Audio Functions
@@ -492,6 +517,12 @@
         function switchToRageMusic() {
             if (!boss.musicTriggered && musicPath === 'genocide') {
                 boss.musicTriggered = true;
+                boss.rageHealingBonus = true; // Enable extra healing in rage mode
+                rageModeIndicator.style.display = 'block';
+                
+                // Add emergency heals for rage mode
+                playerItems.emergencyHeal = 2;
+                
                 const currentVolume = currentMusic.volume;
                 
                 // Fade out current music
@@ -621,7 +652,8 @@
             "* *fur stands on end* I'll show you true cat fury!",
             "* You've made a terrible mistake, human...",
             "* *eyes glow with otherworldly power* Time to get serious!",
-            "* No more playing around... PREPARE FOR MY ULTIMATE FORM!"
+            "* No more playing around... PREPARE FOR MY ULTIMATE FORM!",
+            "* But... I'll give you a chance. Green treats will appear more often now."
         ];
 
         // Different ending dialogue sequences
@@ -683,7 +715,9 @@
             'enragedSwipe': 'Enraged Claw Storm',
             'phaseTransition': 'Tactical Repositioning',
             'megalovania': 'MEGALO-PAW-NIA',
-            'determination': 'Feline Determination'
+            'determination': 'Feline Determination',
+            'mercyHealing': 'Merciful Healing Wave',
+            'emergencyTreats': 'Emergency Treat Supply'
         };
 
         // Restart functionality
@@ -692,6 +726,12 @@
         });
 
         function resetGame() {
+            // Cancel existing game loop
+            if (gameLoopId) {
+                cancelAnimationFrame(gameLoopId);
+                gameLoopId = null;
+            }
+            
             // Reset all game state
             gameState = 'intro';
             player = { 
@@ -719,7 +759,8 @@
                 enragedMode: false,
                 musicTriggered: false,
                 fightCount: 0,
-                mercyAttempts: 0
+                mercyAttempts: 0,
+                rageHealingBonus: false
             };
             attacks = [];
             particles = [];
@@ -728,7 +769,7 @@
             attackTimer = 0;
             currentAttackType = '';
             turnCounter = 0;
-            playerItems = { treats: 3, catnip: 1 };
+            playerItems = { treats: 3, catnip: 1, emergencyHeal: 0 };
             actionSelected = false;
             endingDialogueIndex = 0;
             endingType = 'none';
@@ -750,6 +791,7 @@
             menuInstructions.style.display = 'none';
             attackInfo.style.display = 'block'; // Show attack info again
             attackTypeIndicator.style.display = 'none';
+            rageModeIndicator.style.display = 'none';
             
             // Reset menu selection
             const buttons = document.querySelectorAll('.menu-button');
@@ -781,6 +823,9 @@
             
             // Clear any status effects display
             statusEffect.textContent = '';
+            
+            // Restart game loop
+            gameLoop();
         }
         
         // Input handling
@@ -935,19 +980,45 @@
         }
         
         function handleItemMenu() {
-            if (playerItems.treats > 0) {
-                playerItems.treats--;
-                player.hp = Math.min(player.maxHP, player.hp + 8);
-                boss.mood = 'friendly';
-                return "* You offer Cans some treats. They grudgingly accept and seem much less hostile.";
-            } else if (playerItems.catnip > 0) {
-                playerItems.catnip--;
-                player.statusEffects.catnip = 120;
-                boss.mood = 'confused';
-                return "* You scatter catnip around. Cans becomes entranced, and you feel dizzy too!";
+            let message = "";
+            
+            // Show available items during rage mode
+            if (boss.enragedMode && boss.rageHealingBonus) {
+                if (playerItems.emergencyHeal > 0) {
+                    playerItems.emergencyHeal--;
+                    player.hp = Math.min(player.maxHP, player.hp + 12);
+                    message = "* You use an emergency heal! Restored 12 HP. The power of determination fills you.";
+                } else if (playerItems.treats > 0) {
+                    playerItems.treats--;
+                    player.hp = Math.min(player.maxHP, player.hp + 10);
+                    boss.mood = 'friendly';
+                    message = "* You eat some treats. Restored 10 HP. Cans looks jealous but less hostile.";
+                } else if (playerItems.catnip > 0) {
+                    playerItems.catnip--;
+                    player.statusEffects.catnip = 120;
+                    boss.mood = 'confused';
+                    message = "* You scatter catnip around. Cans becomes entranced, and you feel dizzy too!";
+                } else {
+                    message = "* You have no items left! Stay determined!";
+                }
             } else {
-                return "* You have no items left! Maybe you should have brought more treats...";
+                // Normal item handling
+                if (playerItems.treats > 0) {
+                    playerItems.treats--;
+                    player.hp = Math.min(player.maxHP, player.hp + 8);
+                    boss.mood = 'friendly';
+                    message = "* You offer Cans some treats. They grudgingly accept and seem much less hostile.";
+                } else if (playerItems.catnip > 0) {
+                    playerItems.catnip--;
+                    player.statusEffects.catnip = 120;
+                    boss.mood = 'confused';
+                    message = "* You scatter catnip around. Cans becomes entranced, and you feel dizzy too!";
+                } else {
+                    message = "* You have no items left! Maybe you should have brought more treats...";
+                }
             }
+            
+            return message;
         }
 
         function startEnding() {
@@ -962,6 +1033,7 @@
             menuInstructions.style.display = 'none';
             attackInfo.style.display = 'none';
             attackTypeIndicator.style.display = 'none';
+            rageModeIndicator.style.display = 'none';
             
             setTimeout(() => {
                 gameState = 'ending';
@@ -1019,6 +1091,7 @@
             menuInstructions.style.display = 'none';
             attackInfo.style.display = 'none';
             attackTypeIndicator.style.display = 'none';
+            rageModeIndicator.style.display = 'none';
             
             setTimeout(() => {
                 const deathDialogue = playerDeathDialogues[Math.floor(Math.random() * playerDeathDialogues.length)];
@@ -1110,6 +1183,9 @@
             if (player.statusEffects.sleepy > 0) {
                 statusText += 'Sleepy... ';
             }
+            if (boss.rageHealingBonus && playerItems.emergencyHeal > 0) {
+                statusText += `Emergency Heals: ${playerItems.emergencyHeal} `;
+            }
             statusEffect.textContent = statusText;
         }
         
@@ -1146,6 +1222,10 @@
             } else if (boss.mood === 'enraged' || boss.enragedMode) {
                 if (musicPath === 'genocide') {
                     attackPool = ['megalovania', 'determination', 'enragedSwipe', 'comboAttack', 'blueBones', 'orangeZoomies'];
+                    // Add healing opportunities in rage mode
+                    if (Math.random() < 0.3 && boss.rageHealingBonus) {
+                        attackPool.push('mercyHealing', 'emergencyTreats');
+                    }
                 } else {
                     attackPool = ['enragedSwipe', 'comboAttack', 'blueBones', 'orangeZoomies'];
                 }
@@ -1166,7 +1246,8 @@
                     attackTypeUsed = 'blue';
                 } else if (attackType.includes('orange') || attackType === 'orangeZoomies') {
                     attackTypeUsed = 'orange';
-                } else if (attackType === 'healingTreats' || (attackType === 'treats' && boss.mood === 'friendly')) {
+                } else if (attackType === 'healingTreats' || (attackType === 'treats' && boss.mood === 'friendly') || 
+                          attackType === 'mercyHealing' || attackType === 'emergencyTreats') {
                     attackTypeUsed = 'green';
                 }
                 
@@ -1174,7 +1255,11 @@
             }
             
             // Update attack tip
-            attackTip.textContent = attackTips[attackTypeUsed] || attackTips['white'];
+            if (boss.rageHealingBonus && attackTypeUsed === 'green') {
+                attackTip.textContent = attackTips['healing'];
+            } else {
+                attackTip.textContent = attackTips[attackTypeUsed] || attackTips['white'];
+            }
         }
         
         function executeAttack(attackType) {
@@ -1200,6 +1285,8 @@
                 case 'enragedSwipe': createEnragedSwipeAttack(); break;
                 case 'megalovania': createMegalovaniaAttack(); break;
                 case 'determination': createDeterminationAttack(); break;
+                case 'mercyHealing': createMercyHealingAttack(); break;
+                case 'emergencyTreats': createEmergencyTreatsAttack(); break;
                 default: createYarnBallAttack();
             }
         }
@@ -1213,6 +1300,47 @@
             setTimeout(() => createPawSwipeAttack(), 1600);
             if (boss.phase >= 5) {
                 setTimeout(() => createBlueBonesAttack(), 2400);
+            }
+            // Add healing opportunity in combo attacks during rage mode
+            if (boss.rageHealingBonus) {
+                setTimeout(() => createMercyHealingAttack(), 3200);
+            }
+        }
+
+        // New healing attacks for rage mode
+        function createMercyHealingAttack() {
+            // Creates a wave of healing particles
+            for (let i = 0; i < 15; i++) {
+                attacks.push({
+                    type: 'mercyHealing',
+                    x: battleBox.x + Math.random() * battleBox.width,
+                    y: battleBox.y - 10,
+                    dx: (Math.random() - 0.5) * 1.5,
+                    dy: 1 + Math.random() * 2,
+                    size: 10,
+                    color: '#00ff00',
+                    attackColor: 'green',
+                    healAmount: 3
+                });
+            }
+        }
+
+        function createEmergencyTreatsAttack() {
+            // Creates larger healing opportunities
+            for (let i = 0; i < 5; i++) {
+                const x = battleBox.x + (i + 0.5) * (battleBox.width / 5);
+                attacks.push({
+                    type: 'emergencyTreats',
+                    x: x,
+                    y: battleBox.y - 10,
+                    dx: 0,
+                    dy: 2,
+                    size: 15,
+                    color: '#00ff00',
+                    attackColor: 'green',
+                    healAmount: 5,
+                    timer: 180
+                });
             }
         }
 
@@ -1321,7 +1449,8 @@
         
         function createHealingTreatsAttack() {
             // Green attacks heal when touched
-            for (let i = 0; i < 8; i++) {
+            const count = boss.rageHealingBonus ? 12 : 8;
+            for (let i = 0; i < count; i++) {
                 attacks.push({
                     type: 'healingTreats',
                     x: battleBox.x + Math.random() * battleBox.width,
@@ -1330,7 +1459,8 @@
                     dy: 2 + Math.random() * 2,
                     size: 8,
                     color: '#00ff00',
-                    attackColor: 'green'
+                    attackColor: 'green',
+                    healAmount: boss.rageHealingBonus ? 3 : 2
                 });
             }
         }
@@ -1502,7 +1632,7 @@
         
         function createTreatShowerAttack() {
             const count = boss.phase >= 3 ? 20 : 15;
-            const healingTreats = boss.mood === 'friendly';
+            const healingTreats = boss.mood === 'friendly' || (boss.rageHealingBonus && Math.random() < 0.4);
             
             for (let i = 0; i < count; i++) {
                 attacks.push({
@@ -1513,7 +1643,8 @@
                     dy: 1 + Math.random() * 3,
                     size: 5,
                     color: healingTreats ? '#00ff00' : '#D2691E',
-                    attackColor: healingTreats ? 'green' : 'white'
+                    attackColor: healingTreats ? 'green' : 'white',
+                    healAmount: healingTreats ? (boss.rageHealingBonus ? 3 : 2) : 0
                 });
             }
         }
@@ -1642,6 +1773,8 @@
         
         // Game loop
         function gameLoop() {
+            // Clear and redraw canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.fillStyle = '#000';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             
@@ -1686,7 +1819,7 @@
                 updatePlayerDeathAnimation();
             }
             
-            requestAnimationFrame(gameLoop);
+            gameLoopId = requestAnimationFrame(gameLoop);
         }
 
         function updatePlayerDeathAnimation() {
@@ -1995,6 +2128,19 @@
                             }
                         }
                         break;
+
+                    case 'mercyHealing':
+                    case 'emergencyTreats':
+                        attack.x += attack.dx;
+                        attack.y += attack.dy;
+                        if (attack.timer) {
+                            attack.timer--;
+                            if (attack.timer <= 0) {
+                                attacks.splice(i, 1);
+                                continue;
+                            }
+                        }
+                        break;
                         
                     case 'string':
                         attack.x += attack.dx;
@@ -2130,6 +2276,35 @@
                     ctx.beginPath();
                     ctx.arc(attack.x, attack.y, attack.size/2, 0, Math.PI * 2);
                     ctx.fill();
+                    break;
+
+                case 'mercyHealing':
+                case 'emergencyTreats':
+                    // Enhanced healing visual
+                    ctx.beginPath();
+                    ctx.arc(attack.x, attack.y, attack.size/2, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.strokeStyle = '#00ff00';
+                    ctx.lineWidth = 3;
+                    ctx.stroke();
+                    
+                    // Add pulse effect
+                    const pulseSize = attack.size * (1 + Math.sin(Date.now() * 0.01) * 0.3);
+                    ctx.globalAlpha = 0.3;
+                    ctx.beginPath();
+                    ctx.arc(attack.x, attack.y, pulseSize/2, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.globalAlpha = 1;
+                    
+                    // Add sparkles
+                    if (Math.random() < 0.5) {
+                        ctx.fillStyle = '#ffffff';
+                        for (let j = 0; j < 3; j++) {
+                            const sparkleX = attack.x + (Math.random() - 0.5) * attack.size;
+                            const sparkleY = attack.y + (Math.random() - 0.5) * attack.size;
+                            ctx.fillRect(sparkleX - 1, sparkleY - 1, 2, 2);
+                        }
+                    }
                     break;
                     
                 case 'string':
@@ -2287,7 +2462,7 @@
                 
                 if (collision) {
                     handlePlayerHit(attack);
-                    if (!['catnip', 'healingTreats'].includes(attack.type)) {
+                    if (!['catnip', 'healingTreats', 'mercyHealing', 'emergencyTreats'].includes(attack.type)) {
                         attacks.splice(i, 1);
                     }
                 }
@@ -2307,7 +2482,8 @@
                 shouldTakeDamage = !player.isMoving;
             } else if (attack.attackColor === 'green') {
                 // Green attacks heal
-                player.hp = Math.min(player.maxHP, player.hp + 2);
+                const healAmount = attack.healAmount || 2;
+                player.hp = Math.min(player.maxHP, player.hp + healAmount);
                 updateStats();
                 return;
             }
@@ -2337,7 +2513,15 @@
                     }
                     break;
                 case 'healingTreats':
-                    player.hp = Math.min(player.maxHP, player.hp + 2);
+                    player.hp = Math.min(player.maxHP, player.hp + (attack.healAmount || 2));
+                    updateStats();
+                    return;
+                case 'mercyHealing':
+                    player.hp = Math.min(player.maxHP, player.hp + (attack.healAmount || 3));
+                    updateStats();
+                    return;
+                case 'emergencyTreats':
+                    player.hp = Math.min(player.maxHP, player.hp + (attack.healAmount || 5));
                     updateStats();
                     return;
                 case 'catnip':
