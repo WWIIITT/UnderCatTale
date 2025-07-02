@@ -279,11 +279,77 @@
             50% { opacity: 0.5; }
             100% { opacity: 1; }
         }
+
+        /* Cutscene styles */
+        .cutscene-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            display: none;
+            z-index: 100;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .cutscene-dialogue {
+            background: #000;
+            border: 3px solid #fff;
+            padding: 30px;
+            margin: 20px;
+            max-width: 600px;
+            text-align: center;
+            font-family: 'Courier New', monospace;
+            font-size: 18px;
+            color: #fff;
+            line-height: 1.6;
+        }
+
+        .dramatic-text {
+            color: #ff0000;
+            text-shadow: 2px 2px 4px #000;
+            animation: textShake 0.3s infinite alternate;
+        }
+
+        @keyframes textShake {
+            0% { transform: translateX(-1px); }
+            100% { transform: translateX(1px); }
+        }
+
+        .screen-flash {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #ff0000;
+            opacity: 0;
+            z-index: 99;
+            pointer-events: none;
+        }
+
+        .screen-shake {
+            animation: screenShake 0.5s infinite;
+        }
+
+        @keyframes screenShake {
+            0% { transform: translateX(-2px) translateY(-2px); }
+            25% { transform: translateX(2px) translateY(-2px); }
+            50% { transform: translateX(-2px) translateY(2px); }
+            75% { transform: translateX(2px) translateY(2px); }
+            100% { transform: translateX(-2px) translateY(-2px); }
+        }
     </style>
 </head>
 <body>
     <div id="gameContainer">
         <canvas id="gameCanvas" width="800" height="600"></canvas>
+        
+        <!-- Screen effects -->
+        <div class="screen-flash" id="screenFlash"></div>
         
         <!-- Audio Controls -->
         <div class="audio-controls">
@@ -359,6 +425,14 @@
             <div class="dialogue-text" id="dialogueText"></div>
         </div>
 
+        <!-- Dramatic Cutscene -->
+        <div class="cutscene-overlay" id="cutsceneOverlay">
+            <div class="cutscene-dialogue" id="cutsceneDialogue">
+                <div id="cutsceneText"></div>
+                <p style="margin-top: 30px; color: #888; font-size: 14px;">Press SPACE to continue...</p>
+            </div>
+        </div>
+
         <div class="ending-overlay" id="endingOverlay">
             <div class="victory-text" id="victoryText">
                 <h1>✨ VICTORY ✨</h1>
@@ -398,6 +472,12 @@
         const currentTrack = document.getElementById('currentTrack');
         const rageModeIndicator = document.getElementById('rageModeIndicator');
         
+        // Cutscene elements
+        const cutsceneOverlay = document.getElementById('cutsceneOverlay');
+        const cutsceneDialogue = document.getElementById('cutsceneDialogue');
+        const cutsceneText = document.getElementById('cutsceneText');
+        const screenFlash = document.getElementById('screenFlash');
+        
         // Audio elements
         const backgroundMusic = document.getElementById('backgroundMusic');
         const rageMusic = document.getElementById('rageMusic');
@@ -412,7 +492,7 @@
         let musicPath = 'neutral'; // 'neutral', 'mercy', 'genocide'
         
         // Game state
-        let gameState = 'intro'; // intro, menu, attack, dialogue, win, gameover, ending, death_animation, mercy_ending, kill_ending
+        let gameState = 'intro'; // intro, menu, attack, dialogue, win, gameover, ending, death_animation, mercy_ending, kill_ending, cutscene
         let player = { 
             x: 400, 
             y: 300, 
@@ -439,7 +519,8 @@
             musicTriggered: false,
             fightCount: 0,
             mercyAttempts: 0,
-            rageHealingBonus: false
+            rageHealingBonus: false,
+            cutsceneTriggered: false
         };
         let attacks = [];
         let particles = [];
@@ -456,6 +537,21 @@
         let playerDeathTimer = 0;
         let attackPhaseTimer = 0;
         let gameLoopId = null;
+        let cutsceneStep = 0;
+        
+        // Dramatic cutscene dialogue sequence
+        const dramaticCutsceneDialogues = [
+            "* mrrow... mrrow... mrrow... mrrow...",
+            "* all right.",
+            "* well, here's a better question.",
+            "* do you wanna have a <span class='dramatic-text'>bad time</span>?",
+            "* 'cause if you take another step forward...",
+            "* you are <span class='dramatic-text'>REALLY</span> not going to like what happens next.",
+            "* ...",
+            "* welp.",
+            "* sorry, old habit.",
+            "* <span class='dramatic-text'>TIME TO GET SERIOUS.</span>"
+        ];
         
         // Attack type tips
         const attackTips = {
@@ -514,6 +610,97 @@
             });
         }
 
+        // Cutscene Functions
+        function triggerDramaticCutscene() {
+            if (boss.cutsceneTriggered) return;
+            boss.cutsceneTriggered = true;
+            
+            gameState = 'cutscene';
+            cutsceneStep = 0;
+            
+            // Hide all UI elements
+            menu.style.display = 'none';
+            menuInstructions.style.display = 'none';
+            dialogue.style.display = 'none';
+            attackInfo.style.display = 'none';
+            attackTypeIndicator.style.display = 'none';
+            
+            // Clear attacks and particles
+            attacks = [];
+            particles = [];
+            
+            // Start the cutscene
+            showCutsceneDialogue();
+        }
+        
+        function showCutsceneDialogue() {
+            cutsceneOverlay.style.display = 'flex';
+            
+            if (cutsceneStep < dramaticCutsceneDialogues.length) {
+                const dialogue = dramaticCutsceneDialogues[cutsceneStep];
+                cutsceneText.innerHTML = dialogue;
+                
+                // Add special effects for dramatic moments
+                if (dialogue.includes('bad time') || dialogue.includes('REALLY') || dialogue.includes('SERIOUS')) {
+                    flashScreen();
+                    shakeScreen();
+                }
+                
+                // Change text color for dramatic lines
+                if (dialogue.includes('SERIOUS')) {
+                    cutsceneText.style.color = '#ff0000';
+                } else if (dialogue.includes('bad time')) {
+                    cutsceneText.style.color = '#ff4500';
+                } else {
+                    cutsceneText.style.color = '#fff';
+                }
+            }
+        }
+        
+        function nextCutsceneDialogue() {
+            cutsceneStep++;
+            
+            if (cutsceneStep >= dramaticCutsceneDialogues.length) {
+                endCutscene();
+            } else {
+                showCutsceneDialogue();
+            }
+        }
+        
+        function endCutscene() {
+            cutsceneOverlay.style.display = 'none';
+            
+            // Activate rage mode
+            boss.mood = 'enraged';
+            boss.enragedMode = true;
+            
+            if (musicPath === 'genocide') {
+                switchToRageMusic();
+            }
+            
+            // Show UI elements again
+            attackInfo.style.display = 'block';
+            rageModeIndicator.style.display = 'block';
+            
+            // Continue with the game
+            gameState = 'dialogue';
+            showDialogue("* Cans's eyes glow with an otherworldly fury!");
+        }
+        
+        function flashScreen() {
+            screenFlash.style.opacity = '0.5';
+            setTimeout(() => {
+                screenFlash.style.opacity = '0';
+            }, 100);
+        }
+        
+        function shakeScreen() {
+            document.getElementById('gameContainer').classList.add('screen-shake');
+            setTimeout(() => {
+                document.getElementById('gameContainer').classList.remove('screen-shake');
+            }, 500);
+        }
+
         function switchToRageMusic() {
             if (!boss.musicTriggered && musicPath === 'genocide') {
                 boss.musicTriggered = true;
@@ -532,7 +719,7 @@
                 setTimeout(() => {
                     currentMusic = rageMusic;
                     currentMusic.volume = 0;
-                    currentTrack.textContent = '♪ MEGALOVANIA ♪';
+                    currentTrack.textContent = '♪ SERIOUS MODE ♪';
                     currentTrack.style.color = '#ff0000';
                     musicIndicator.style.animation = 'pulse 1s infinite';
                     
@@ -760,7 +947,8 @@
                 musicTriggered: false,
                 fightCount: 0,
                 mercyAttempts: 0,
-                rageHealingBonus: false
+                rageHealingBonus: false,
+                cutsceneTriggered: false
             };
             attacks = [];
             particles = [];
@@ -776,6 +964,7 @@
             playerDeathTimer = 0;
             attackPhaseTimer = 0;
             musicPath = 'neutral';
+            cutsceneStep = 0;
 
             // Clear canvas completely
             ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -792,6 +981,7 @@
             attackInfo.style.display = 'block'; // Show attack info again
             attackTypeIndicator.style.display = 'none';
             rageModeIndicator.style.display = 'none';
+            cutsceneOverlay.style.display = 'none';
             
             // Reset menu selection
             const buttons = document.querySelectorAll('.menu-button');
@@ -824,6 +1014,10 @@
             // Clear any status effects display
             statusEffect.textContent = '';
             
+            // Reset screen effects
+            document.getElementById('gameContainer').classList.remove('screen-shake');
+            screenFlash.style.opacity = '0';
+            
             // Restart game loop
             gameLoop();
         }
@@ -841,7 +1035,11 @@
                     nextEndingDialogue();
                 }
                 e.preventDefault();
-            } 
+            }
+            else if (gameState === 'cutscene' && e.code === 'Space') {
+                nextCutsceneDialogue();
+                e.preventDefault();
+            }
             else if (gameState === 'menu' && e.key === 'Enter') {
                 selectMenuItem();
                 e.preventDefault();
@@ -911,14 +1109,12 @@
                         musicPath = 'genocide';
                     }
                     
-                    // Boss gets more aggressive when hurt
-                    if (boss.hp <= 125 && !boss.enragedMode) { // Adjusted for higher HP
-                        boss.mood = 'enraged';
-                        boss.enragedMode = true;
-                        if (musicPath === 'genocide') {
-                            dialogueMessage += '\n' + rageDialogues[Math.floor(Math.random() * rageDialogues.length)];
-                            switchToRageMusic();
-                        }
+                    // Boss gets more aggressive when hurt - trigger cutscene
+                    if (boss.hp <= 125 && !boss.enragedMode && !boss.cutsceneTriggered) {
+                        // Trigger dramatic cutscene instead of immediate rage mode
+                        updateStats();
+                        triggerDramaticCutscene();
+                        return; // Don't continue with normal dialogue
                     } else if (boss.hp <= 175) {
                         boss.mood = 'annoyed';
                     }
