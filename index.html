@@ -2974,7 +2974,8 @@
                 
                 if (collision) {
                     handlePlayerHit(attack);
-                    if (!['catnip', 'healingTreats', 'mercyHealing', 'emergencyTreats'].includes(attack.type)) {
+                    // Remove attack after collision (including healing attacks)
+                    if (!['catnip'].includes(attack.type)) {
                         attacks.splice(i, 1);
                     }
                 }
