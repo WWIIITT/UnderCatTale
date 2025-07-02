@@ -79,6 +79,49 @@
             color: #000;
             transform: scale(1.1);
         }
+
+        .menu-button.destroyed {
+            background: #330000;
+            color: #666;
+            border-color: #666;
+            cursor: not-allowed;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .menu-button.destroyed::before {
+            content: '✗';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            color: #ff0000;
+            z-index: 1;
+        }
+
+        .menu-button.destroyed::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: repeating-linear-gradient(
+                45deg,
+                transparent,
+                transparent 10px,
+                rgba(255, 0, 0, 0.1) 10px,
+                rgba(255, 0, 0, 0.1) 20px
+            );
+            z-index: 0;
+        }
+
+        .menu-button.destroyed:hover {
+            background: #330000;
+            color: #666;
+            transform: none;
+        }
         
         .stats {
             position: absolute;
@@ -522,7 +565,8 @@
             fightCount: 0,
             mercyAttempts: 0,
             rageHealingBonus: false,
-            cutsceneTriggered: false
+            cutsceneTriggered: false,
+            itemButtonDestroyed: false
         };
         let attacks = [];
         let particles = [];
@@ -553,6 +597,16 @@
             "* welp.",
             "* sorry, old habit.",
             "* <span class='dramatic-text'>TIME TO GET SERIOUS.</span>"
+        ];
+
+        // Item button destruction cutscene
+        const itemDestructionDialogues = [
+            "* Cans notices you're out of emergency supplies...",
+            "* *eyes glow with malicious intent*",
+            "* <span class='dramatic-text'>NO MORE ITEMS FOR YOU!</span>",
+            "* *swipes at the ITEM button with supernatural force*",
+            "* *CRASH!* The button shatters into digital fragments!",
+            "* mrow... now you must face me with only your <span class='dramatic-text'>DETERMINATION</span>!"
         ];
         
         // Attack type tips
@@ -634,24 +688,126 @@
             // Start the cutscene
             showCutsceneDialogue();
         }
-        
-        function showCutsceneDialogue() {
+
+        function triggerItemDestructionCutscene() {
+            if (boss.itemButtonDestroyed) return;
+            boss.itemButtonDestroyed = true;
+            
+            gameState = 'item_destruction_cutscene';
+            cutsceneStep = 0;
+            
+            // Hide all UI elements
+            menu.style.display = 'none';
+            menuInstructions.style.display = 'none';
+            dialogue.style.display = 'none';
+            attackInfo.style.display = 'none';
+            attackTypeIndicator.style.display = 'none';
+            
+            // Clear attacks and particles
+            attacks = [];
+            particles = [];
+            
+            // Start the item destruction cutscene
+            showItemDestructionCutscene();
+        }
+
+        function showItemDestructionCutscene() {
             cutsceneOverlay.style.display = 'flex';
             
-            if (cutsceneStep < dramaticCutsceneDialogues.length) {
-                const dialogue = dramaticCutsceneDialogues[cutsceneStep];
+            if (cutsceneStep < itemDestructionDialogues.length) {
+                const dialogue = itemDestructionDialogues[cutsceneStep];
                 cutsceneText.innerHTML = dialogue;
                 
                 // Add special effects for dramatic moments
-                if (dialogue.includes('bad time') || dialogue.includes('REALLY') || dialogue.includes('SERIOUS')) {
+                if (dialogue.includes('NO MORE ITEMS') || dialogue.includes('CRASH') || dialogue.includes('DETERMINATION')) {
                     flashScreen();
                     shakeScreen();
                 }
                 
+                // Special effect when destroying the button
+                if (dialogue.includes('CRASH')) {
+                    destroyItemButtonVisually();
+                }
+                
                 // Change text color for dramatic lines
-                if (dialogue.includes('SERIOUS')) {
+                if (dialogue.includes('NO MORE ITEMS') || dialogue.includes('DETERMINATION')) {
                     cutsceneText.style.color = '#ff0000';
-                } else if (dialogue.includes('bad time')) {
+                } else if (dialogue.includes('CRASH')) {
+                    cutsceneText.style.color = '#ff4500';
+                } else {
+                    cutsceneText.style.color = '#fff';
+                }
+            }
+        }
+
+        function destroyItemButtonVisually() {
+            const itemButton = document.querySelector('[data-action="item"]');
+            if (itemButton) {
+                itemButton.classList.add('destroyed');
+                
+                // Create destruction particles
+                for (let i = 0; i < 20; i++) {
+                    particles.push({
+                        type: 'destruction',
+                        x: 400 + (Math.random() - 0.5) * 100,
+                        y: 500 + (Math.random() - 0.5) * 50,
+                        dx: (Math.random() - 0.5) * 8,
+                        dy: (Math.random() - 0.5) * 8,
+                        timer: 120,
+                        color: '#ff0000',
+                        size: Math.random() * 4 + 2
+                    });
+                }
+            }
+        }
+
+        function nextItemDestructionDialogue() {
+            cutsceneStep++;
+            
+            if (cutsceneStep >= itemDestructionDialogues.length) {
+                endItemDestructionCutscene();
+            } else {
+                showItemDestructionCutscene();
+            }
+        }
+
+        function endItemDestructionCutscene() {
+            cutsceneOverlay.style.display = 'none';
+            
+            // Show UI elements again
+            attackInfo.style.display = 'block';
+            rageModeIndicator.style.display = 'block';
+            
+            // Continue with the game
+            gameState = 'dialogue';
+            showDialogue("* The ITEM button lies in ruins... you're on your own now!");
+        }
+        
+        function showCutsceneDialogue() {
+            cutsceneOverlay.style.display = 'flex';
+            
+            const dialogues = gameState === 'item_destruction_cutscene' ? itemDestructionDialogues : dramaticCutsceneDialogues;
+            
+            if (cutsceneStep < dialogues.length) {
+                const dialogue = dialogues[cutsceneStep];
+                cutsceneText.innerHTML = dialogue;
+                
+                // Add special effects for dramatic moments
+                if (dialogue.includes('bad time') || dialogue.includes('REALLY') || dialogue.includes('SERIOUS') ||
+                    dialogue.includes('NO MORE ITEMS') || dialogue.includes('CRASH') || dialogue.includes('DETERMINATION')) {
+                    flashScreen();
+                    shakeScreen();
+                }
+                
+                // Special effect when destroying the button
+                if (dialogue.includes('CRASH')) {
+                    destroyItemButtonVisually();
+                }
+                
+                // Change text color for dramatic lines
+                if (dialogue.includes('SERIOUS') || dialogue.includes('NO MORE ITEMS') || dialogue.includes('DETERMINATION')) {
+                    cutsceneText.style.color = '#ff0000';
+                } else if (dialogue.includes('bad time') || dialogue.includes('CRASH')) {
                     cutsceneText.style.color = '#ff4500';
                 } else {
                     cutsceneText.style.color = '#fff';
@@ -662,10 +818,18 @@
         function nextCutsceneDialogue() {
             cutsceneStep++;
             
-            if (cutsceneStep >= dramaticCutsceneDialogues.length) {
-                endCutscene();
+            if (gameState === 'item_destruction_cutscene') {
+                if (cutsceneStep >= itemDestructionDialogues.length) {
+                    endItemDestructionCutscene();
+                } else {
+                    showItemDestructionCutscene();
+                }
             } else {
-                showCutsceneDialogue();
+                if (cutsceneStep >= dramaticCutsceneDialogues.length) {
+                    endCutscene();
+                } else {
+                    showCutsceneDialogue();
+                }
             }
         }
         
@@ -952,7 +1116,8 @@
                 fightCount: 0,
                 mercyAttempts: 0,
                 rageHealingBonus: false,
-                cutsceneTriggered: false
+                cutsceneTriggered: false,
+                itemButtonDestroyed: false
             };
             attacks = [];
             particles = [];
@@ -990,7 +1155,7 @@
             // Reset menu selection
             const buttons = document.querySelectorAll('.menu-button');
             buttons.forEach((button) => {
-                button.classList.remove('selected');
+                button.classList.remove('selected', 'destroyed');
             });
             
             // Show instructions
@@ -1040,7 +1205,7 @@
                 }
                 e.preventDefault();
             }
-            else if (gameState === 'cutscene' && e.code === 'Space') {
+            else if ((gameState === 'cutscene' || gameState === 'item_destruction_cutscene') && e.code === 'Space') {
                 nextCutsceneDialogue();
                 e.preventDefault();
             }
@@ -1050,14 +1215,28 @@
             }
             else if (gameState === 'menu') {
                 if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'ArrowUp' || e.key === 'w') {
-                    if (selectedMenuItem > 0) {
-                        selectedMenuItem--;
+                    let newSelection = selectedMenuItem - 1;
+                    
+                    // Skip destroyed item button
+                    if (newSelection === 2 && boss.itemButtonDestroyed) {
+                        newSelection--;
+                    }
+                    
+                    if (newSelection >= 0) {
+                        selectedMenuItem = newSelection;
                         updateMenuSelection();
                     }
                     e.preventDefault();
                 } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'ArrowDown' || e.key === 's') {
-                    if (selectedMenuItem < 3) {
-                        selectedMenuItem++;
+                    let newSelection = selectedMenuItem + 1;
+                    
+                    // Skip destroyed item button
+                    if (newSelection === 2 && boss.itemButtonDestroyed) {
+                        newSelection++;
+                    }
+                    
+                    if (newSelection <= 3) {
+                        selectedMenuItem = newSelection;
                         updateMenuSelection();
                     }
                     e.preventDefault();
@@ -1073,6 +1252,12 @@
         document.querySelectorAll('.menu-button').forEach((button, index) => {
             button.addEventListener('click', (e) => {
                 if (gameState === 'menu') {
+                    // Don't allow clicking destroyed item button
+                    if (index === 2 && boss.itemButtonDestroyed) {
+                        showDialogue("* The ITEM button is destroyed... you can't use items anymore!");
+                        return;
+                    }
+                    
                     selectedMenuItem = index;
                     updateMenuSelection();
                     selectMenuItem();
@@ -1085,15 +1270,28 @@
             const buttons = document.querySelectorAll('.menu-button');
             buttons.forEach((button, index) => {
                 button.classList.toggle('selected', index === selectedMenuItem);
+                
+                // Don't allow selection of destroyed item button
+                if (index === 2 && boss.itemButtonDestroyed) { // index 2 is ITEM button
+                    button.classList.remove('selected');
+                }
             });
         }
         
         function selectMenuItem() {
             if (actionSelected || gameState !== 'menu') return;
-            actionSelected = true;
             
             const actions = ['fight', 'act', 'item', 'mercy'];
             const action = actions[selectedMenuItem];
+            
+            // Check if ITEM button is destroyed
+            if (action === 'item' && boss.itemButtonDestroyed) {
+                // Play a sad meow sound effect (if we had audio)
+                showDialogue("* The ITEM button is destroyed... you can't use items anymore!");
+                return;
+            }
+            
+            actionSelected = true;
             
             menu.style.display = 'none';
             menuInstructions.style.display = 'none';
@@ -1188,6 +1386,18 @@
                     playerItems.emergencyHeal--;
                     player.hp = Math.min(player.maxHP, player.hp + 12);
                     message = "* You use an emergency heal! Restored 12 HP. The power of determination fills you.";
+                    
+                    // Check if this was the last emergency heal
+                    if (playerItems.emergencyHeal === 0 && !boss.itemButtonDestroyed) {
+                        // Trigger the item destruction cutscene after a delay
+                        setTimeout(() => {
+                            if (gameState === 'menu' && boss.enragedMode && !boss.itemButtonDestroyed) {
+                                triggerItemDestructionCutscene();
+                            }
+                        }, 3000); // Wait 3 seconds after the dialogue
+                        
+                        message += "\n* That was your last emergency heal...";
+                    }
                 } else if (playerItems.treats > 0) {
                     playerItems.treats--;
                     player.hp = Math.min(player.maxHP, player.hp + 10);
@@ -2651,6 +2861,16 @@
                         ctx.strokeRect(particle.x - particle.size/2, particle.y - particle.size/2, 
                                      particle.size, particle.size);
                     }
+                } else if (particle.type === 'destruction') {
+                    // Update destruction particles
+                    particle.x += particle.dx;
+                    particle.y += particle.dy;
+                    particle.dy += 0.3; // gravity
+                    
+                    ctx.fillStyle = particle.color;
+                    ctx.globalAlpha = particle.timer / 120;
+                    ctx.fillRect(particle.x - particle.size/2, particle.y - particle.size/2, particle.size, particle.size);
+                    ctx.globalAlpha = 1;
                 }
             }
         }
