@@ -141,21 +141,43 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.8);
+            background: rgba(0, 0, 0, 0.9);
             display: none;
             z-index: 50;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
         }
 
-        .victory-text {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
+        .victory-text, .gameover-text {
             text-align: center;
             color: #ffff00;
             font-size: 24px;
             z-index: 100;
             display: none;
+            margin-bottom: 20px;
+        }
+
+        .gameover-text {
+            color: #ff0000;
+        }
+
+        .restart-button {
+            background: #000;
+            border: 3px solid #fff;
+            color: #fff;
+            padding: 15px 30px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            font-size: 18px;
+            transition: all 0.2s ease;
+            margin-top: 20px;
+        }
+
+        .restart-button:hover {
+            background: #fff;
+            color: #000;
+            transform: scale(1.1);
         }
 
         .audio-controls {
@@ -220,6 +242,15 @@
             color: #00ff00;
             font-size: 10px;
         }
+
+        .attack-type-indicator {
+            position: absolute;
+            top: 120px;
+            left: 10px;
+            color: #ffff00;
+            font-size: 12px;
+            z-index: 5;
+        }
     </style>
 </head>
 <body>
@@ -251,12 +282,21 @@
             <div>Phase: <span id="currentPhase">1</span></div>
             <div>Attack: <span id="currentAttack">Preparing...</span></div>
         </div>
+
+        <div class="attack-type-indicator" id="attackTypeIndicator">
+            <div>TIP: <span id="attackTip">Move to dodge white attacks!</span></div>
+        </div>
         
         <div class="status-effect" id="statusEffect"></div>
         
         <div id="instructions">
             <h2>🐱 CANS - THE ULTIMATE CAT 🐱</h2>
             <p>Use ARROW KEYS or WASD to move your heart and dodge attacks!</p>
+            <p>Different colored attacks have special effects:</p>
+            <p style="color: #fff;">⚪ WHITE: Hurts when touched</p>
+            <p style="color: #00ff00;">🟢 GREEN: Heals when touched</p>
+            <p style="color: #87ceeb;">🔵 BLUE: Hurts only when moving</p>
+            <p style="color: #ffa500;">🟠 ORANGE: Hurts only when still</p>
             <p>Choose your actions wisely during battle!</p>
             <p>Press SPACE to continue</p>
         </div>
@@ -276,11 +316,16 @@
             <div class="dialogue-text" id="dialogueText"></div>
         </div>
 
-        <div class="ending-overlay" id="endingOverlay"></div>
-        
-        <div class="victory-text" id="victoryText">
-            <h1>✨ VICTORY ✨</h1>
-            <p>You have befriended Cans!</p>
+        <div class="ending-overlay" id="endingOverlay">
+            <div class="victory-text" id="victoryText">
+                <h1>✨ VICTORY ✨</h1>
+                <p id="victoryMessage">You have befriended Cans!</p>
+            </div>
+            <div class="gameover-text" id="gameoverText">
+                <h1>💀 GAME OVER 💀</h1>
+                <p id="gameoverMessage">Cans sits on your keyboard triumphantly...</p>
+            </div>
+            <button class="restart-button" id="restartButton">RESTART GAME</button>
         </div>
     </div>
 
@@ -300,6 +345,12 @@
         const statusEffect = document.getElementById('statusEffect');
         const endingOverlay = document.getElementById('endingOverlay');
         const victoryText = document.getElementById('victoryText');
+        const gameoverText = document.getElementById('gameoverText');
+        const victoryMessage = document.getElementById('victoryMessage');
+        const gameoverMessage = document.getElementById('gameoverMessage');
+        const restartButton = document.getElementById('restartButton');
+        const attackTypeIndicator = document.getElementById('attackTypeIndicator');
+        const attackTip = document.getElementById('attackTip');
         
         // Audio elements
         const backgroundMusic = document.getElementById('backgroundMusic');
@@ -312,14 +363,16 @@
         let musicMuted = false;
         
         // Game state
-        let gameState = 'intro'; // intro, menu, attack, dialogue, win, gameover, ending, death_animation
+        let gameState = 'intro'; // intro, menu, attack, dialogue, win, gameover, ending, death_animation, mercy_ending, kill_ending
         let player = { 
             x: 400, 
             y: 300, 
             size: 8, 
             hp: 20, 
             maxHP: 20,
-            statusEffects: {} // catnip, sleepy, etc
+            statusEffects: {},
+            isMoving: false,
+            lastPosition: { x: 400, y: 300 }
         };
         let boss = { 
             hp: 100, 
@@ -329,7 +382,11 @@
             deathTimer: 0,
             opacity: 1.0,
             scale: 1.0,
-            deathEffects: []
+            deathEffects: [],
+            attackPatterns: [],
+            lastAttackTime: 0,
+            consecutiveAttacks: 0,
+            enragedMode: false
         };
         let attacks = [];
         let particles = [];
@@ -340,15 +397,25 @@
         let currentAttackType = '';
         let turnCounter = 0;
         let playerItems = { treats: 3, catnip: 1 };
-        let actionSelected = false; // Flag to track if action was selected
+        let actionSelected = false;
         let endingDialogueIndex = 0;
+        let endingType = 'none'; // 'mercy', 'kill'
+        let playerDeathTimer = 0;
+        let attackPhaseTimer = 0;
         
+        // Attack type tips
+        const attackTips = {
+            'white': 'Move to dodge white attacks!',
+            'green': 'Touch green to heal!',
+            'blue': 'Stand still to avoid blue attacks!',
+            'orange': 'Keep moving to avoid orange attacks!',
+            'mixed': 'Multiple attack types incoming!'
+        };
+
         // Audio Functions
         function initializeAudio() {
-            // Set initial volume
             backgroundMusic.volume = volumeSlider.value / 100;
             
-            // Audio event listeners
             backgroundMusic.addEventListener('loadstart', () => {
                 audioStatus.textContent = 'LOADING';
                 audioStatus.style.color = '#ffff00';
@@ -466,21 +533,42 @@
             "* *purrs reluctantly* maybe we can share the sunny spot on the carpet"
         ];
 
-        // Ending dialogue sequence
-        const endingDialogues = [
-            "* Cans staggers, breathing heavily...",
-            "* mrow... you're... stronger than i thought...",
-            "* *coughs* but wait... you didn't really want to hurt me, did you?",
-            "* i can see it in your eyes... you just wanted to be friends...",
-            "* *purrs weakly* you know what? i'm tired of fighting too...",
+        // Different ending dialogue sequences
+        const mercyEndingDialogues = [
+            "* Cans stops attacking and looks at you curiously...",
+            "* mrow? you... you're not going to hurt me?",
+            "* *sniffs cautiously* i can sense no hostility in your heart...",
+            "* you know what? i'm tired of fighting too...",
+            "* *purrs softly* maybe we got off on the wrong paw...",
             "* how about we call it even? you can pet me... just this once...",
             "* *rolls over dramatically* fine, fine... you win... belly rubs time...",
             "* from now on, we share the house. deal?",
             "* *purrs loudly* thanks for showing me that not all humans are terrible...",
             "* now, where did you say those treats were? *hopeful meow*"
         ];
+
+        const killEndingDialogues = [
+            "* Cans staggers, breathing heavily...",
+            "* mrow... you're... stronger than i thought...",
+            "* *coughs weakly* why... why did it have to end this way?",
+            "* i just... i just wanted to protect my territory...",
+            "* *looks at you with sad eyes* i hope... i hope you're happy now...",
+            "* maybe... maybe in another life... we could have been friends...",
+            "* *whispers* tell the other cats... tell them i fought bravely...",
+            "* the sunny spot on the carpet... it's yours now...",
+            "* *closes eyes peacefully* thank you for... making it quick...",
+            "* *fades away* take care of yourself... human..."
+        ];
+
+        const playerDeathDialogues = [
+            "* Cans sits triumphantly on your defeated form...",
+            "* *purrs smugly* that's what you get for disturbing my nap!",
+            "* *begins grooming paw* humans... so predictable...",
+            "* *yawns* well, that was a nice warm-up exercise...",
+            "* *curls up for a nap* wake me when the next intruder arrives..."
+        ];
         
-        // Attack names for display
+        // Enhanced attack names for display
         const attackNames = {
             'yarnball': 'Yarn Ball Barrage',
             'fishbone': 'Flying Fishbones',
@@ -496,14 +584,82 @@
             'nap': 'Cat Nap Time',
             'scratching': 'Scratching Post Fury',
             'hiding': 'Under Furniture',
-            'litter': 'Litter Box Revenge'
+            'litter': 'Litter Box Revenge',
+            'blueBones': 'Gravity Well Bones',
+            'orangeZoomies': 'Heat-Seeking Zoomies',
+            'healingTreats': 'Compassionate Treats',
+            'comboAttack': 'Ultimate Cat Combo',
+            'enragedSwipe': 'Enraged Claw Storm',
+            'phaseTransition': 'Tactical Repositioning'
         };
+
+        // Restart functionality
+        restartButton.addEventListener('click', () => {
+            resetGame();
+        });
+
+        function resetGame() {
+            // Reset all game state
+            gameState = 'intro';
+            player = { 
+                x: 400, 
+                y: 300, 
+                size: 8, 
+                hp: 20, 
+                maxHP: 20,
+                statusEffects: {},
+                isMoving: false,
+                lastPosition: { x: 400, y: 300 }
+            };
+            boss = { 
+                hp: 100, 
+                maxHP: 100, 
+                phase: 0, 
+                mood: 'aggressive',
+                deathTimer: 0,
+                opacity: 1.0,
+                scale: 1.0,
+                deathEffects: [],
+                attackPatterns: [],
+                lastAttackTime: 0,
+                consecutiveAttacks: 0,
+                enragedMode: false
+            };
+            attacks = [];
+            particles = [];
+            keys = {};
+            selectedMenuItem = 0;
+            attackTimer = 0;
+            currentAttackType = '';
+            turnCounter = 0;
+            playerItems = { treats: 3, catnip: 1 };
+            actionSelected = false;
+            endingDialogueIndex = 0;
+            endingType = 'none';
+            playerDeathTimer = 0;
+            attackPhaseTimer = 0;
+
+            // Hide ending overlay and show instructions
+            endingOverlay.style.display = 'none';
+            victoryText.style.display = 'none';
+            gameoverText.style.display = 'none';
+            instructions.style.display = 'block';
+            dialogue.style.display = 'none';
+            menu.style.display = 'none';
+            menuInstructions.style.display = 'none';
+
+            // Reset audio
+            stopMusic();
+            volumeSlider.value = 50;
+            updateVolume();
+
+            updateStats();
+        }
         
-        // Input handling - FIXED to prevent auto-selection
+        // Input handling
         document.addEventListener('keydown', (e) => {
             keys[e.key.toLowerCase()] = true;
             
-            // SPACE only works for dialogue and intro
             if ((gameState === 'intro' || gameState === 'dialogue' || gameState === 'ending') && e.code === 'Space') {
                 if (gameState === 'intro') {
                     startGame();
@@ -514,12 +670,10 @@
                 }
                 e.preventDefault();
             } 
-            // ENTER only works for menu selection
             else if (gameState === 'menu' && e.key === 'Enter') {
                 selectMenuItem();
                 e.preventDefault();
             }
-            // Arrow keys and WASD for menu navigation
             else if (gameState === 'menu') {
                 if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'ArrowUp' || e.key === 'w') {
                     if (selectedMenuItem > 0) {
@@ -541,7 +695,7 @@
             keys[e.key.toLowerCase()] = false;
         });
         
-        // Menu handling - FIXED click handling
+        // Menu handling
         document.querySelectorAll('.menu-button').forEach((button, index) => {
             button.addEventListener('click', (e) => {
                 if (gameState === 'menu') {
@@ -561,13 +715,12 @@
         }
         
         function selectMenuItem() {
-            if (actionSelected) return; // Prevent double-selection
+            if (actionSelected || gameState !== 'menu') return;
             actionSelected = true;
             
             const actions = ['fight', 'act', 'item', 'mercy'];
             const action = actions[selectedMenuItem];
             
-            // Hide menu immediately after selection
             menu.style.display = 'none';
             menuInstructions.style.display = 'none';
             
@@ -578,8 +731,15 @@
                 case 'fight':
                     const damage = Math.floor(Math.random() * 15) + 10;
                     boss.hp = Math.max(0, boss.hp - damage);
-                    dialogueMessage = `* You scratch Cans for ${damage} damage! They look annoyed but impressed.`;
-                    boss.mood = 'annoyed';
+                    dialogueMessage = `* You scratch Cans for ${damage} damage! They look ${boss.hp <= 30 ? 'severely wounded' : 'annoyed but impressed'}.`;
+                    
+                    // Boss gets more aggressive when hurt
+                    if (boss.hp <= 50) {
+                        boss.mood = 'enraged';
+                        boss.enragedMode = true;
+                    } else {
+                        boss.mood = 'annoyed';
+                    }
                     break;
                 case 'act':
                     const actResult = handleActMenu();
@@ -592,10 +752,12 @@
                 case 'mercy':
                     if (boss.hp < 30 || boss.mood === 'friendly') {
                         dialogueMessage = "* Cans accepts your mercy. They curl up and start purring.";
+                        endingType = 'mercy';
                         startEnding();
                         shouldContinue = false;
                     } else {
                         dialogueMessage = "* Cans is not ready to forgive your trespassing yet. *hisses*";
+                        boss.mood = 'annoyed';
                     }
                     break;
             }
@@ -604,20 +766,13 @@
             
             // Check win condition
             if (boss.hp <= 0) {
+                endingType = 'kill';
                 startEnding();
                 shouldContinue = false;
             }
             
-            // Show result dialogue
             if (shouldContinue) {
                 showDialogue(dialogueMessage);
-                
-                // If game continues, prepare for next turn
-                setTimeout(() => {
-                    if (gameState === 'dialogue') {
-                        // This will be handled by nextDialogue when user presses space
-                    }
-                }, 100);
             }
         }
         
@@ -626,7 +781,9 @@
                 { text: "* You try to pet Cans. They purr but remain alert.", mood: 'neutral' },
                 { text: "* You make pspsps sounds. Cans looks confused but intrigued.", mood: 'curious' },
                 { text: "* You pretend to ignore Cans. They immediately want attention.", mood: 'attention-seeking' },
-                { text: "* You point at a random spot. Cans looks where you're pointing.", mood: 'distracted' }
+                { text: "* You point at a random spot. Cans looks where you're pointing.", mood: 'distracted' },
+                { text: "* You compliment Cans' beautiful fur. They preen with pride.", mood: 'flattered' },
+                { text: "* You offer to share your lunch. Cans perks up with interest.", mood: 'friendly' }
             ];
             
             return actOptions[Math.floor(Math.random() * actOptions.length)];
@@ -637,10 +794,10 @@
                 playerItems.treats--;
                 player.hp = Math.min(player.maxHP, player.hp + 8);
                 boss.mood = 'friendly';
-                return "* You offer Cans some treats. They grudgingly accept and seem less hostile.";
+                return "* You offer Cans some treats. They grudgingly accept and seem much less hostile.";
             } else if (playerItems.catnip > 0) {
                 playerItems.catnip--;
-                player.statusEffects.catnip = 120; // 2 seconds of effect
+                player.statusEffects.catnip = 120;
                 boss.mood = 'confused';
                 return "* You scatter catnip around. Cans becomes entranced, and you feel dizzy too!";
             } else {
@@ -651,59 +808,91 @@
         function startEnding() {
             gameState = 'death_animation';
             boss.deathTimer = 0;
-            attacks = []; // Clear all attacks
-            particles = []; // Clear all particles
+            attacks = [];
+            particles = [];
             
-            // Fade out music for dramatic effect
             fadeOutMusic(2000);
             
-            // Hide UI elements
             menu.style.display = 'none';
             menuInstructions.style.display = 'none';
             attackInfo.style.display = 'none';
+            attackTypeIndicator.style.display = 'none';
             
-            // Start death animation
             setTimeout(() => {
                 gameState = 'ending';
                 endingDialogueIndex = 0;
                 showEndingDialogue();
-                // Fade music back in but softer for ending
                 setTimeout(() => {
                     const currentVolume = volumeSlider.value;
                     volumeSlider.value = Math.max(20, currentVolume * 0.5);
                     fadeInMusic(3000);
                 }, 1000);
-            }, 3000); // 3 seconds of death animation
+            }, 3000);
         }
 
         function showEndingDialogue() {
             gameState = 'ending';
             dialogue.style.display = 'block';
-            dialogueText.textContent = endingDialogues[endingDialogueIndex];
+            const dialogues = endingType === 'mercy' ? mercyEndingDialogues : killEndingDialogues;
+            dialogueText.textContent = dialogues[endingDialogueIndex];
         }
 
         function nextEndingDialogue() {
             endingDialogueIndex++;
-            if (endingDialogueIndex < endingDialogues.length) {
-                dialogueText.textContent = endingDialogues[endingDialogueIndex];
+            const dialogues = endingType === 'mercy' ? mercyEndingDialogues : killEndingDialogues;
+            
+            if (endingDialogueIndex < dialogues.length) {
+                dialogueText.textContent = dialogues[endingDialogueIndex];
             } else {
-                // End of dialogue, show victory
                 dialogue.style.display = 'none';
-                endingOverlay.style.display = 'block';
-                victoryText.style.display = 'block';
-                gameState = 'win';
-                // Victory music moment - restore volume
+                endingOverlay.style.display = 'flex';
+                
+                if (endingType === 'mercy') {
+                    victoryText.style.display = 'block';
+                    victoryMessage.textContent = "You befriended Cans! The power of mercy has triumphed!";
+                    gameState = 'win';
+                } else {
+                    victoryText.style.display = 'block';
+                    victoryMessage.textContent = "You defeated Cans... but at what cost?";
+                    gameState = 'win';
+                }
+                
                 volumeSlider.value = Math.min(70, volumeSlider.value * 1.5);
                 updateVolume();
             }
+        }
+
+        function handlePlayerDeath() {
+            gameState = 'player_death';
+            attacks = [];
+            particles = [];
+            playerDeathTimer = 0;
+            
+            fadeOutMusic(2000);
+            
+            menu.style.display = 'none';
+            menuInstructions.style.display = 'none';
+            attackInfo.style.display = 'none';
+            attackTypeIndicator.style.display = 'none';
+            
+            setTimeout(() => {
+                const deathDialogue = playerDeathDialogues[Math.floor(Math.random() * playerDeathDialogues.length)];
+                showDialogue(deathDialogue);
+                
+                setTimeout(() => {
+                    dialogue.style.display = 'none';
+                    endingOverlay.style.display = 'flex';
+                    gameoverText.style.display = 'block';
+                    gameoverMessage.textContent = "Better luck next time! Cans remains undefeated.";
+                    gameState = 'gameover';
+                }, 3000);
+            }, 2000);
         }
         
         function startGame() {
             instructions.style.display = 'none';
             gameState = 'dialogue';
             showDialogue(bossDialogues[0]);
-            
-            // Start the background music when game begins
             startMusic();
         }
         
@@ -724,8 +913,8 @@
                 return;
             }
             
-            // After dialogue, go to attack phase
             gameState = 'attack';
+            attackPhaseTimer = 0;
             startAttackPhase();
         }
         
@@ -733,28 +922,30 @@
             attacks = [];
             particles = [];
             attackTimer = 0;
-            actionSelected = false; // Reset action selection flag
+            actionSelected = false;
             
-            // Reset player position to center of battle box
             player.x = battleBox.x + battleBox.width / 2;
             player.y = battleBox.y + battleBox.height / 2;
+            player.lastPosition = { x: player.x, y: player.y };
             
-            // Calculate boss phase
             boss.phase = Math.floor((boss.maxHP - boss.hp) / 20) + 1;
             currentPhaseSpan.textContent = boss.phase;
             
-            // Attack phase lasts 4 seconds
+            attackTypeIndicator.style.display = 'block';
+            
+            // Attack phase lasts 5-7 seconds based on boss health
+            const phaseDuration = boss.hp > 50 ? 5000 : (boss.hp > 25 ? 6000 : 7000);
             setTimeout(() => {
                 endAttackPhase();
-            }, 4000);
+            }, phaseDuration);
         }
         
         function endAttackPhase() {
             attacks = [];
             particles = [];
             currentAttackSpan.textContent = 'Preparing...';
+            attackTypeIndicator.style.display = 'none';
             
-            // Go to menu state and STAY there until user selects
             gameState = 'menu';
             menu.style.display = 'block';
             menuInstructions.style.display = 'block';
@@ -767,7 +958,6 @@
             playerHPSpan.textContent = player.hp;
             bossHPSpan.textContent = boss.hp;
             
-            // Update status effects display
             let statusText = '';
             if (player.statusEffects.catnip > 0) {
                 statusText += 'Catnip High! ';
@@ -778,9 +968,189 @@
             statusEffect.textContent = statusText;
         }
         
-        // Enhanced Attack patterns
+        // Enhanced Attack patterns with color coding
+        function generateRandomAttack() {
+            // Increase attack frequency and complexity based on boss health and phase
+            const healthPercent = boss.hp / boss.maxHP;
+            const phase = boss.phase;
+            
+            let attackPool = [];
+            let attackTypeUsed = 'white';
+            
+            // Basic attacks (always available)
+            attackPool.push('yarnball', 'fishbone', 'pawswipe', 'laser');
+            
+            // Phase-based attacks
+            if (phase >= 2) {
+                attackPool.push('catnip', 'zoomies', 'mouse');
+            }
+            if (phase >= 3) {
+                attackPool.push('treats', 'cardboard', 'string');
+            }
+            if (phase >= 4) {
+                attackPool.push('hairball', 'scratching', 'hiding');
+            }
+            if (phase >= 5) {
+                attackPool.push('litter', 'blueBones', 'orangeZoomies');
+            }
+            
+            // Boss mood affects attack selection
+            if (boss.mood === 'friendly') {
+                attackPool = ['healingTreats', 'catnip', 'treats'];
+                attackTypeUsed = 'green';
+            } else if (boss.mood === 'enraged' || boss.enragedMode) {
+                attackPool = ['enragedSwipe', 'comboAttack', 'blueBones', 'orangeZoomies'];
+                attackTypeUsed = 'mixed';
+            }
+            
+            // Chance for combination attacks at higher phases
+            if (phase >= 4 && Math.random() < 0.3) {
+                createComboAttack();
+                attackTypeUsed = 'mixed';
+            } else {
+                const attackType = attackPool[Math.floor(Math.random() * attackPool.length)];
+                currentAttackType = attackType;
+                currentAttackSpan.textContent = attackNames[attackType] || attackType;
+                
+                // Set attack tip based on attack type
+                if (attackType.includes('blue') || attackType === 'blueBones') {
+                    attackTypeUsed = 'blue';
+                } else if (attackType.includes('orange') || attackType === 'orangeZoomies') {
+                    attackTypeUsed = 'orange';
+                } else if (attackType === 'healingTreats' || (attackType === 'treats' && boss.mood === 'friendly')) {
+                    attackTypeUsed = 'green';
+                }
+                
+                executeAttack(attackType);
+            }
+            
+            // Update attack tip
+            attackTip.textContent = attackTips[attackTypeUsed] || attackTips['white'];
+        }
+        
+        function executeAttack(attackType) {
+            switch(attackType) {
+                case 'yarnball': createYarnBallAttack(); break;
+                case 'fishbone': createFishBoneAttack(); break;
+                case 'pawswipe': createPawSwipeAttack(); break;
+                case 'laser': createLaserPointerAttack(); break;
+                case 'catnip': createCatnipCloudAttack(); break;
+                case 'zoomies': createZoomiesAttack(); break;
+                case 'mouse': createMouseToyAttack(); break;
+                case 'treats': createTreatShowerAttack(); break;
+                case 'cardboard': createCardboardBoxAttack(); break;
+                case 'string': createStringAttack(); break;
+                case 'hairball': createHairballAttack(); break;
+                case 'nap': createNapAttack(); break;
+                case 'scratching': createScratchingPostAttack(); break;
+                case 'hiding': createHidingAttack(); break;
+                case 'litter': createLitterBoxAttack(); break;
+                case 'blueBones': createBlueBonesAttack(); break;
+                case 'orangeZoomies': createOrangeZoomiesAttack(); break;
+                case 'healingTreats': createHealingTreatsAttack(); break;
+                case 'enragedSwipe': createEnragedSwipeAttack(); break;
+                default: createYarnBallAttack();
+            }
+        }
+        
+        function createComboAttack() {
+            currentAttackSpan.textContent = 'Ultimate Cat Combo!';
+            
+            // Create multiple attacks in sequence
+            setTimeout(() => createYarnBallAttack(), 0);
+            setTimeout(() => createLaserPointerAttack(), 800);
+            setTimeout(() => createPawSwipeAttack(), 1600);
+            if (boss.phase >= 5) {
+                setTimeout(() => createBlueBonesAttack(), 2400);
+            }
+        }
+        
+        // NEW ENHANCED ATTACK PATTERNS
+        
+        function createBlueBonesAttack() {
+            // Blue attacks hurt only when moving
+            for (let i = 0; i < 6; i++) {
+                attacks.push({
+                    type: 'blueBones',
+                    x: battleBox.x + i * 80 + 40,
+                    y: battleBox.y - 20,
+                    dx: 0,
+                    dy: 3,
+                    size: 15,
+                    color: '#87ceeb',
+                    attackColor: 'blue'
+                });
+            }
+        }
+        
+        function createOrangeZoomiesAttack() {
+            // Orange attacks hurt only when still
+            for (let i = 0; i < 8; i++) {
+                const angle = (i / 8) * Math.PI * 2;
+                attacks.push({
+                    type: 'orangeZoomies',
+                    x: battleBox.x + battleBox.width/2,
+                    y: battleBox.y + battleBox.height/2,
+                    dx: Math.cos(angle) * 4,
+                    dy: Math.sin(angle) * 4,
+                    size: 12,
+                    color: '#ffa500',
+                    attackColor: 'orange',
+                    trail: []
+                });
+            }
+        }
+        
+        function createHealingTreatsAttack() {
+            // Green attacks heal when touched
+            for (let i = 0; i < 8; i++) {
+                attacks.push({
+                    type: 'healingTreats',
+                    x: battleBox.x + Math.random() * battleBox.width,
+                    y: battleBox.y - 10,
+                    dx: (Math.random() - 0.5) * 2,
+                    dy: 2 + Math.random() * 2,
+                    size: 8,
+                    color: '#00ff00',
+                    attackColor: 'green'
+                });
+            }
+        }
+        
+        function createEnragedSwipeAttack() {
+            // Multiple rapid swipes when boss is enraged
+            for (let i = 0; i < 3; i++) {
+                setTimeout(() => {
+                    const targetX = player.x + (Math.random() - 0.5) * 60;
+                    const targetY = player.y + (Math.random() - 0.5) * 60;
+                    
+                    particles.push({
+                        type: 'warning',
+                        x: targetX,
+                        y: targetY,
+                        timer: 40,
+                        size: 50,
+                        color: '#ff0000'
+                    });
+                    
+                    setTimeout(() => {
+                        attacks.push({
+                            type: 'enragedSwipe',
+                            x: targetX - 35,
+                            y: targetY - 35,
+                            size: 70,
+                            timer: 30,
+                            color: '#ff4500'
+                        });
+                    }, 650);
+                }, i * 500);
+            }
+        }
+        
+        // Keep all original attack functions but enhance them
         function createYarnBallAttack() {
-            for (let i = 0; i < 4; i++) {
+            const count = boss.phase >= 3 ? 6 : 4;
+            for (let i = 0; i < count; i++) {
                 attacks.push({
                     type: 'yarnball',
                     x: Math.random() * battleBox.width + battleBox.x,
@@ -789,7 +1159,8 @@
                     dy: 2 + Math.random() * 2,
                     size: 12,
                     color: '#ff69b4',
-                    bounces: 2
+                    bounces: boss.phase >= 4 ? 3 : 2,
+                    attackColor: 'white'
                 });
             }
         }
@@ -797,16 +1168,18 @@
         function createFishBoneAttack() {
             const side = Math.random() < 0.5 ? 'left' : 'right';
             const startX = side === 'left' ? battleBox.x - 20 : battleBox.x + battleBox.width + 20;
+            const count = boss.phase >= 3 ? 8 : 6;
             
-            for (let i = 0; i < 6; i++) {
+            for (let i = 0; i < count; i++) {
                 attacks.push({
                     type: 'fishbone',
                     x: startX,
-                    y: battleBox.y + i * 30 + 20,
-                    dx: side === 'left' ? 4 : -4,
+                    y: battleBox.y + i * 25 + 20,
+                    dx: side === 'left' ? 4 + boss.phase : -(4 + boss.phase),
                     dy: 0,
                     size: 10,
-                    color: '#ffd700'
+                    color: '#ffd700',
+                    attackColor: 'white'
                 });
             }
         }
@@ -815,7 +1188,6 @@
             const targetX = player.x;
             const targetY = player.y;
             
-            // Warning indicator
             particles.push({
                 type: 'warning',
                 x: targetX,
@@ -832,7 +1204,8 @@
                     y: targetY - 30,
                     size: 60,
                     timer: 40,
-                    color: '#8b4513'
+                    color: '#8b4513',
+                    attackColor: 'white'
                 });
             }, 1300);
         }
@@ -845,17 +1218,18 @@
                 type: 'laser',
                 x: battleBox.x + battleBox.width/2,
                 y: battleBox.y + battleBox.height/2,
-                dx: Math.cos(angle) * 5,
-                dy: Math.sin(angle) * 5,
+                dx: Math.cos(angle) * (5 + boss.phase),
+                dy: Math.sin(angle) * (5 + boss.phase),
                 size: 8,
                 color: '#ff0000',
-                trail: []
+                trail: [],
+                attackColor: 'white'
             });
         }
         
-        // NEW ATTACK PATTERNS
         function createCatnipCloudAttack() {
-            for (let i = 0; i < 20; i++) {
+            const count = boss.phase >= 4 ? 25 : 20;
+            for (let i = 0; i < count; i++) {
                 attacks.push({
                     type: 'catnip',
                     x: battleBox.x + Math.random() * battleBox.width,
@@ -864,14 +1238,16 @@
                     dy: (Math.random() - 0.5) * 1,
                     size: 6,
                     color: '#90EE90',
-                    timer: 180
+                    timer: 180,
+                    attackColor: 'white'
                 });
             }
         }
         
         function createZoomiesAttack() {
-            for (let i = 0; i < 8; i++) {
-                const angle = (i / 8) * Math.PI * 2;
+            const count = boss.phase >= 3 ? 10 : 8;
+            for (let i = 0; i < count; i++) {
+                const angle = (i / count) * Math.PI * 2;
                 attacks.push({
                     type: 'zoomies',
                     x: battleBox.x + battleBox.width/2,
@@ -880,13 +1256,15 @@
                     dy: Math.sin(angle) * 6,
                     size: 15,
                     color: '#FFB6C1',
-                    trail: []
+                    trail: [],
+                    attackColor: 'white'
                 });
             }
         }
         
         function createMouseToyAttack() {
-            for (let i = 0; i < 3; i++) {
+            const count = boss.phase >= 4 ? 4 : 3;
+            for (let i = 0; i < count; i++) {
                 const targetX = player.x + (Math.random() - 0.5) * 100;
                 const targetY = player.y + (Math.random() - 0.5) * 100;
                 
@@ -898,21 +1276,26 @@
                     targetY: targetY,
                     size: 8,   
                     color: '#8B4513',
-                    speed: 2
+                    speed: 2 + boss.phase * 0.5,
+                    attackColor: 'white'
                 });
             }
         }
         
         function createTreatShowerAttack() {
-            for (let i = 0; i < 15; i++) {
+            const count = boss.phase >= 3 ? 20 : 15;
+            const healingTreats = boss.mood === 'friendly';
+            
+            for (let i = 0; i < count; i++) {
                 attacks.push({
-                    type: 'treats',
+                    type: healingTreats ? 'healingTreats' : 'treats',
                     x: battleBox.x + Math.random() * battleBox.width,
                     y: battleBox.y - 10,
                     dx: (Math.random() - 0.5) * 2,
                     dy: 1 + Math.random() * 3,
                     size: 5,
-                    color: '#D2691E'
+                    color: healingTreats ? '#00ff00' : '#D2691E',
+                    attackColor: healingTreats ? 'green' : 'white'
                 });
             }
         }
@@ -927,31 +1310,33 @@
                 y: boxY,
                 size: 60,
                 color: '#DEB887',
-                timer: 120,
-                phase: 0
+                timer: 120 + boss.phase * 20,
+                phase: 0,
+                attackColor: 'white'
             });
         }
         
         function createStringAttack() {
             const startX = battleBox.x;
             const startY = battleBox.y + battleBox.height/2;
+            const count = boss.phase >= 4 ? 12 : 10;
             
-            for (let i = 0; i < 10; i++) {
+            for (let i = 0; i < count; i++) {
                 attacks.push({
                     type: 'string',
-                    x: startX + i * 50,
+                    x: startX + i * 40,
                     y: startY,
-                    dx: 2,
+                    dx: 2 + boss.phase * 0.5,
                     dy: Math.sin(i * 0.5) * 2,
                     size: 4,
                     color: '#FF1493',
-                    waveOffset: i * 0.5
+                    waveOffset: i * 0.5,
+                    attackColor: 'white'
                 });
             }
         }
         
         function createHairballAttack() {
-            // Warning first
             particles.push({
                 type: 'warning',
                 x: battleBox.x + battleBox.width/2,
@@ -967,9 +1352,10 @@
                     x: battleBox.x + battleBox.width/2,
                     y: battleBox.y,
                     dx: 0,
-                    dy: 3,
+                    dy: 3 + boss.phase,
                     size: 25,
-                    color: '#8B4513'
+                    color: '#8B4513',
+                    attackColor: 'white'
                 });
             }, 1000);
         }
@@ -980,23 +1366,25 @@
         }
         
         function createScratchingPostAttack() {
-            for (let i = 0; i < 5; i++) {
+            const count = boss.phase >= 4 ? 6 : 5;
+            for (let i = 0; i < count; i++) {
                 attacks.push({
                     type: 'scratching',
-                    x: battleBox.x + i * 100 + 50,
+                    x: battleBox.x + i * 80 + 50,
                     y: battleBox.y,
                     dx: 0,
-                    dy: 4,
+                    dy: 4 + boss.phase,
                     size: 8,
                     color: '#8B4513',
-                    length: battleBox.height
+                    length: battleBox.height,
+                    attackColor: 'white'
                 });
             }
         }
         
         function createHidingAttack() {
-            // Create shadow under furniture
-            for (let i = 0; i < 3; i++) {
+            const count = boss.phase >= 4 ? 4 : 3;
+            for (let i = 0; i < count; i++) {
                 const shadowX = battleBox.x + Math.random() * (battleBox.width - 80);
                 const shadowY = battleBox.y + Math.random() * (battleBox.height - 20);
                 
@@ -1006,8 +1394,9 @@
                     y: shadowY,
                     size: 80,
                     color: '#333333',
-                    timer: 150,
-                    phase: 0
+                    timer: 150 + boss.phase * 10,
+                    phase: 0,
+                    attackColor: 'white'
                 });
             }
         }
@@ -1027,69 +1416,109 @@
                     y: corner.y,
                     size: 40,
                     color: '#D2B48C',
-                    timer: 200
+                    timer: 200,
+                    attackColor: 'white'
                 });
             });
         }
         
         // Game loop
         function gameLoop() {
-            // Clear canvas
             ctx.fillStyle = '#000';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             
-            // Draw battle box
             if (gameState === 'attack') {
                 ctx.strokeStyle = '#fff';
                 ctx.lineWidth = 3;
                 ctx.strokeRect(battleBox.x, battleBox.y, battleBox.width, battleBox.height);
             }
             
-            // Draw cat boss
             drawCatBoss();
             
             if (gameState === 'attack') {
-                // Update status effects
                 updateStatusEffects();
-                
-                // Update player
                 updatePlayer();
                 
-                // Generate attacks
+                attackPhaseTimer++;
                 attackTimer++;
-                if (attackTimer % 60 === 0) { // Every second
+                
+                // Generate attacks based on boss phase and health
+                const attackFrequency = Math.max(20, 80 - boss.phase * 10 - (boss.enragedMode ? 20 : 0));
+                if (attackTimer % attackFrequency === 0) {
                     generateRandomAttack();
                 }
                 
-                // Update attacks
                 updateAttacks();
-                
-                // Update particles
                 updateParticles();
-                
-                // Draw player (heart)
                 drawPlayer();
-                
-                // Check collisions
                 checkCollisions();
+                
+                // Check for player death immediately
+                if (player.hp <= 0 && gameState === 'attack') {
+                    handlePlayerDeath();
+                    return;
+                }
             }
 
-            // Handle death animation
             if (gameState === 'death_animation') {
                 updateDeathAnimation();
+            }
+
+            if (gameState === 'player_death') {
+                updatePlayerDeathAnimation();
             }
             
             requestAnimationFrame(gameLoop);
         }
 
+        function updatePlayerDeathAnimation() {
+            playerDeathTimer++;
+            
+            // Create death effects around player
+            if (playerDeathTimer % 15 === 0) {
+                particles.push({
+                    type: 'playerDeath',
+                    x: player.x + (Math.random() - 0.5) * 40,
+                    y: player.y + (Math.random() - 0.5) * 40,
+                    timer: 60,
+                    color: `hsl(${Math.random() * 60}, 100%, 50%)`
+                });
+            }
+            
+            // Update death particles
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const particle = particles[i];
+                if (particle.type === 'playerDeath') {
+                    particle.timer--;
+                    particle.y -= 2;
+                    
+                    if (particle.timer <= 0) {
+                        particles.splice(i, 1);
+                        continue;
+                    }
+                    
+                    ctx.fillStyle = particle.color;
+                    ctx.globalAlpha = particle.timer / 60;
+                    ctx.beginPath();
+                    ctx.arc(particle.x, particle.y, 4, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.globalAlpha = 1;
+                }
+            }
+            
+            // Draw fading player heart
+            const alpha = Math.max(0, 1 - playerDeathTimer / 120);
+            ctx.globalAlpha = alpha;
+            drawPlayer();
+            ctx.globalAlpha = 1;
+        }
+
         function updateDeathAnimation() {
             boss.deathTimer++;
             
-            // Fade out and scale down
             boss.opacity = Math.max(0, 1 - boss.deathTimer / 180);
             boss.scale = Math.max(0.3, 1 - boss.deathTimer / 300);
             
-            // Create sparkle effects
             if (boss.deathTimer % 10 === 0) {
                 boss.deathEffects.push({
                     x: canvas.width / 2 + (Math.random() - 0.5) * 100,
@@ -1099,7 +1528,6 @@
                 });
             }
             
-            // Update death effects
             for (let i = boss.deathEffects.length - 1; i >= 0; i--) {
                 const effect = boss.deathEffects[i];
                 effect.timer--;
@@ -1110,7 +1538,6 @@
                     continue;
                 }
                 
-                // Draw sparkle
                 ctx.fillStyle = effect.color;
                 ctx.globalAlpha = effect.timer / 60;
                 ctx.beginPath();
@@ -1120,51 +1547,11 @@
             }
         }
         
-        function generateRandomAttack() {
-            const attackTypes = [
-                'yarnball', 'fishbone', 'pawswipe', 'laser', 'catnip', 'zoomies',
-                'mouse', 'treats', 'cardboard', 'string', 'hairball', 'nap',
-                'scratching', 'hiding', 'litter'
-            ];
-            
-            // Boss mood affects attack selection
-            let weightedAttacks = [...attackTypes];
-            if (boss.mood === 'friendly') {
-                weightedAttacks = ['treats', 'catnip', 'nap', 'mouse'];
-            } else if (boss.mood === 'annoyed') {
-                weightedAttacks = ['pawswipe', 'scratching', 'litter', 'hairball'];
-            }
-            
-            const attackType = weightedAttacks[Math.floor(Math.random() * weightedAttacks.length)];
-            currentAttackType = attackType;
-            currentAttackSpan.textContent = attackNames[attackType] || attackType;
-            
-            switch(attackType) {
-                case 'yarnball': createYarnBallAttack(); break;
-                case 'fishbone': createFishBoneAttack(); break;
-                case 'pawswipe': createPawSwipeAttack(); break;
-                case 'laser': createLaserPointerAttack(); break;
-                case 'catnip': createCatnipCloudAttack(); break;
-                case 'zoomies': createZoomiesAttack(); break;
-                case 'mouse': createMouseToyAttack(); break;
-                case 'treats': createTreatShowerAttack(); break;
-                case 'cardboard': createCardboardBoxAttack(); break;
-                case 'string': createStringAttack(); break;
-                case 'hairball': createHairballAttack(); break;
-                case 'nap': createNapAttack(); break;
-                case 'scratching': createScratchingPostAttack(); break;
-                case 'hiding': createHidingAttack(); break;
-                case 'litter': createLitterBoxAttack(); break;
-            }
-        }
-        
         function updateStatusEffects() {
-            // Update catnip effect
             if (player.statusEffects.catnip > 0) {
                 player.statusEffects.catnip--;
             }
             
-            // Update sleepy effect
             if (player.statusEffects.sleepy > 0) {
                 player.statusEffects.sleepy--;
             }
@@ -1177,19 +1564,23 @@
             const centerY = 100;
             const bodyOffset = Math.sin(Date.now() * 0.003) * 2;
             
-            // Apply death animation effects
             ctx.globalAlpha = boss.opacity;
             ctx.save();
             ctx.translate(centerX, centerY);
             ctx.scale(boss.scale, boss.scale);
             ctx.translate(-centerX, -centerY);
             
-            // Cat body
-            ctx.fillStyle = boss.mood === 'friendly' ? '#AAA' : '#888';
+            // Cat body - color changes based on mood and health
+            let bodyColor = '#888';
+            if (boss.mood === 'friendly') bodyColor = '#AAA';
+            if (boss.mood === 'enraged' || boss.enragedMode) bodyColor = '#666';
+            if (boss.hp <= 25) bodyColor = '#555';
+            
+            ctx.fillStyle = bodyColor;
             ctx.fillRect(centerX - 40, centerY + bodyOffset, 80, 60);
             
             // Cat head
-            ctx.fillStyle = boss.mood === 'friendly' ? '#AAA' : '#888';
+            ctx.fillStyle = bodyColor;
             ctx.fillRect(centerX - 30, centerY - 40 + bodyOffset, 60, 40);
             
             // Cat ears
@@ -1206,41 +1597,49 @@
             ctx.lineTo(centerX + 25, centerY - 40 + bodyOffset);
             ctx.fill();
             
-            // Cat eyes (change based on mood)
-            const eyeColor = boss.mood === 'friendly' ? '#00ff00' : 
-                           boss.mood === 'annoyed' ? '#ff4500' : '#00ff00';
+            // Cat eyes - change based on mood and health
+            let eyeColor = '#00ff00';
+            if (boss.mood === 'enraged' || boss.enragedMode) eyeColor = '#ff4500';
+            if (boss.mood === 'friendly') eyeColor = '#00ff00';
+            if (boss.hp <= 25) eyeColor = '#ffff00';
+            
             ctx.fillStyle = eyeColor;
             ctx.fillRect(centerX - 20, centerY - 30 + bodyOffset, 8, 8);
             ctx.fillRect(centerX + 12, centerY - 30 + bodyOffset, 8, 8);
             
             // Cat pupils
             ctx.fillStyle = '#000';
-            const pupilWidth = boss.mood === 'confused' ? 1 : 2;
+            const pupilWidth = boss.mood === 'confused' ? 1 : (boss.enragedMode ? 3 : 2);
             ctx.fillRect(centerX - 19, centerY - 28 + bodyOffset, pupilWidth, 4);
             ctx.fillRect(centerX + 13, centerY - 28 + bodyOffset, pupilWidth, 4);
             
-            // Cat tail (more animated)
-            ctx.fillStyle = boss.mood === 'friendly' ? '#AAA' : '#888';
-            const tailSway = Math.sin(Date.now() * 0.01) * 15;
+            // Cat tail
+            ctx.fillStyle = bodyColor;
+            const tailSway = Math.sin(Date.now() * (boss.enragedMode ? 0.02 : 0.01)) * (boss.enragedMode ? 25 : 15);
             const tailHeight = Math.sin(Date.now() * 0.005) * 5;
             ctx.fillRect(centerX + 40, centerY + 20 + bodyOffset + tailHeight, 30 + tailSway, 8);
             
-            // Mood indicator
+            // Mood indicators
             if (boss.mood === 'friendly') {
-                // Hearts
                 ctx.fillStyle = '#ff69b4';
                 ctx.font = '16px Arial';
                 ctx.fillText('♥', centerX - 60, centerY - 10);
                 ctx.fillText('♥', centerX + 50, centerY - 5);
-            } else if (boss.mood === 'annoyed') {
-                // Anger marks
+            } else if (boss.mood === 'enraged' || boss.enragedMode) {
                 ctx.strokeStyle = '#ff0000';
-                ctx.lineWidth = 2;
+                ctx.lineWidth = 3;
                 ctx.beginPath();
                 ctx.moveTo(centerX - 50, centerY - 20);
-                ctx.lineTo(centerX - 45, centerY - 25);
-                ctx.moveTo(centerX - 50, centerY - 25);
-                ctx.lineTo(centerX - 45, centerY - 20);
+                ctx.lineTo(centerX - 40, centerY - 30);
+                ctx.moveTo(centerX - 50, centerY - 30);
+                ctx.lineTo(centerX - 40, centerY - 20);
+                ctx.stroke();
+                
+                ctx.beginPath();
+                ctx.moveTo(centerX + 40, centerY - 20);
+                ctx.lineTo(centerX + 50, centerY - 30);
+                ctx.moveTo(centerX + 40, centerY - 30);
+                ctx.lineTo(centerX + 50, centerY - 20);
                 ctx.stroke();
             }
             
@@ -1249,14 +1648,17 @@
         }
         
         function updatePlayer() {
+            // Track if player is moving for blue/orange attacks
+            player.isMoving = (player.x !== player.lastPosition.x || player.y !== player.lastPosition.y);
+            player.lastPosition = { x: player.x, y: player.y };
+            
             let speed = 3;
             
-            // Status effect modifications
             if (player.statusEffects.catnip > 0) {
-                speed = 1.5; // Slower when under catnip influence
+                speed = 1.5;
             }
             if (player.statusEffects.sleepy > 0) {
-                speed = 2; // Slower when sleepy
+                speed = 2;
             }
             
             let moveX = 0, moveY = 0;
@@ -1266,7 +1668,6 @@
             if (keys['arrowup'] || keys['w']) moveY = -1;
             if (keys['arrowdown'] || keys['s']) moveY = 1;
             
-            // Catnip effect: reverse controls occasionally
             if (player.statusEffects.catnip > 0 && Math.random() < 0.3) {
                 moveX *= -1;
                 moveY *= -1;
@@ -1275,7 +1676,6 @@
             const newX = player.x + moveX * speed;
             const newY = player.y + moveY * speed;
             
-            // Boundary checking
             if (newX >= battleBox.x + player.size && newX <= battleBox.x + battleBox.width - player.size) {
                 player.x = newX;
             }
@@ -1285,7 +1685,6 @@
         }
         
         function drawPlayer() {
-            // Draw heart with status effect modifications
             let heartColor = '#ff0000';
             if (player.statusEffects.catnip > 0) {
                 heartColor = `hsl(${Date.now() * 0.1 % 360}, 100%, 50%)`;
@@ -1305,7 +1704,6 @@
             ctx.bezierCurveTo(player.x + size/2, player.y, player.x, player.y, player.x, player.y + size/2);
             ctx.fill();
             
-            // Draw status effect indicators around player
             if (player.statusEffects.sleepy > 0) {
                 ctx.fillStyle = '#ffffff';
                 ctx.font = '12px Arial';
@@ -1317,12 +1715,10 @@
             for (let i = attacks.length - 1; i >= 0; i--) {
                 const attack = attacks[i];
                 
-                // Update position based on attack type
                 switch(attack.type) {
                     case 'yarnball':
                         attack.x += attack.dx;
                         attack.y += attack.dy;
-                        // Bounce off walls
                         if (attack.x <= battleBox.x || attack.x >= battleBox.x + battleBox.width) {
                             attack.dx *= -1;
                             attack.bounces--;
@@ -1334,7 +1730,6 @@
                         break;
                         
                     case 'mouse':
-                        // Homing behavior
                         const angle = Math.atan2(attack.targetY - attack.y, attack.targetX - attack.x);
                         attack.x += Math.cos(angle) * attack.speed;
                         attack.y += Math.sin(angle) * attack.speed;
@@ -1346,6 +1741,7 @@
                         break;
                         
                     case 'zoomies':
+                    case 'orangeZoomies':
                         attack.x += attack.dx;
                         attack.y += attack.dy;
                         if (attack.trail) {
@@ -1354,6 +1750,11 @@
                                 attack.trail.shift();
                             }
                         }
+                        break;
+                        
+                    case 'blueBones':
+                        attack.x += attack.dx;
+                        attack.y += attack.dy;
                         break;
                         
                     case 'catnip':
@@ -1377,10 +1778,22 @@
                         break;
                         
                     case 'pawswipe':
+                    case 'enragedSwipe':
                         attack.timer--;
                         if (attack.timer <= 0) {
                             attacks.splice(i, 1);
                             continue;
+                        }
+                        break;
+                        
+                    case 'laser':
+                        attack.x += attack.dx;
+                        attack.y += attack.dy;
+                        if (attack.trail) {
+                            attack.trail.push({x: attack.x, y: attack.y});
+                            if (attack.trail.length > 10) {
+                                attack.trail.shift();
+                            }
                         }
                         break;
                         
@@ -1389,8 +1802,7 @@
                         attack.y += attack.dy;
                 }
                 
-                // Remove attacks that are off screen (except persistent ones)
-                if (!['cardboard', 'hiding', 'litter', 'pawswipe'].includes(attack.type)) {
+                if (!['cardboard', 'hiding', 'litter', 'pawswipe', 'enragedSwipe'].includes(attack.type)) {
                     if (attack.x < battleBox.x - 50 || attack.x > battleBox.x + battleBox.width + 50 || 
                         attack.y < battleBox.y - 50 || attack.y > battleBox.y + battleBox.height + 50) {
                         attacks.splice(i, 1);
@@ -1398,7 +1810,6 @@
                     }
                 }
                 
-                // Draw attack
                 drawAttack(attack);
             }
         }
@@ -1408,7 +1819,6 @@
             
             switch(attack.type) {
                 case 'yarnball':
-                    // Draw yarn ball with texture
                     ctx.beginPath();
                     ctx.arc(attack.x, attack.y, attack.size/2, 0, Math.PI * 2);
                     ctx.fill();
@@ -1418,9 +1828,7 @@
                     break;
                     
                 case 'mouse':
-                    // Draw mouse shape
                     ctx.fillRect(attack.x - attack.size/2, attack.y - attack.size/2, attack.size, attack.size);
-                    // Mouse tail
                     ctx.strokeStyle = attack.color;
                     ctx.lineWidth = 2;
                     ctx.beginPath();
@@ -1436,7 +1844,7 @@
                     break;
                     
                 case 'zoomies':
-                    // Draw trail
+                case 'orangeZoomies':
                     if (attack.trail && attack.trail.length > 1) {
                         ctx.strokeStyle = attack.color;
                         ctx.lineWidth = attack.size/2;
@@ -1452,22 +1860,42 @@
                     ctx.fill();
                     break;
                     
+                case 'blueBones':
+                    // Blue attacks - special visual indicator
+                    ctx.fillRect(attack.x - attack.size/2, attack.y - attack.size/2, attack.size, attack.size);
+                    ctx.strokeStyle = '#4169e1';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(attack.x - attack.size/2, attack.y - attack.size/2, attack.size, attack.size);
+                    break;
+                    
+                case 'healingTreats':
+                    // Green healing attacks - special visual
+                    ctx.beginPath();
+                    ctx.arc(attack.x, attack.y, attack.size/2, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.strokeStyle = '#00cc00';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                    // Add sparkle effect
+                    if (Math.random() < 0.3) {
+                        ctx.fillStyle = '#ffffff';
+                        ctx.fillRect(attack.x - 1, attack.y - 1, 2, 2);
+                    }
+                    break;
+                    
                 case 'cardboard':
-                    // Draw cardboard box
                     ctx.fillRect(attack.x, attack.y, attack.size, attack.size);
                     ctx.strokeStyle = '#8B4513';
                     ctx.lineWidth = 2;
                     ctx.strokeRect(attack.x, attack.y, attack.size, attack.size);
-                    // Box flaps
                     ctx.strokeRect(attack.x + 5, attack.y + 5, attack.size - 10, attack.size - 10);
                     break;
                     
                 case 'hiding':
-                    // Draw shadow/hiding spot
                     ctx.globalAlpha = 0.7;
                     ctx.fillRect(attack.x, attack.y, attack.size, 20);
                     ctx.globalAlpha = 1.0;
-                    if (attack.timer % 60 < 30) { // Flashing eyes
+                    if (attack.timer % 60 < 30) {
                         ctx.fillStyle = '#ff0000';
                         ctx.fillRect(attack.x + 10, attack.y + 5, 3, 3);
                         ctx.fillRect(attack.x + 20, attack.y + 5, 3, 3);
@@ -1475,12 +1903,10 @@
                     break;
                     
                 case 'litter':
-                    // Draw litter box
                     ctx.fillRect(attack.x, attack.y, attack.size, attack.size);
                     ctx.strokeStyle = '#8B4513';
                     ctx.lineWidth = 2;
                     ctx.strokeRect(attack.x, attack.y, attack.size, attack.size);
-                    // Litter texture
                     for (let j = 0; j < 5; j++) {
                         ctx.fillStyle = '#DDD';
                         ctx.beginPath();
@@ -1490,7 +1916,6 @@
                     break;
                     
                 case 'laser':
-                    // Draw laser trail
                     if (attack.trail && attack.trail.length > 1) {
                         ctx.strokeStyle = attack.color;
                         ctx.lineWidth = attack.size;
@@ -1510,7 +1935,6 @@
                     break;
                     
                 case 'catnip':
-                    // Floating catnip particles
                     ctx.globalAlpha = 0.8;
                     ctx.beginPath();
                     ctx.arc(attack.x, attack.y, attack.size/2, 0, Math.PI * 2);
@@ -1549,25 +1973,26 @@
             for (let i = attacks.length - 1; i >= 0; i--) {
                 const attack = attacks[i];
                 let distance;
+                let collision = false;
                 
-                // Different collision detection for different attack types
-                if (['cardboard', 'hiding', 'litter', 'pawswipe'].includes(attack.type)) {
-                    // Rectangle collision
+                if (['cardboard', 'hiding', 'litter', 'pawswipe', 'enragedSwipe'].includes(attack.type)) {
                     if (player.x > attack.x && player.x < attack.x + attack.size &&
                         player.y > attack.y && player.y < attack.y + attack.size) {
-                        handlePlayerHit(attack);
-                        if (attack.type === 'pawswipe') {
-                            attacks.splice(i, 1);
-                        }
+                        collision = true;
                     }
                 } else {
-                    // Circle collision
                     distance = Math.sqrt(
                         Math.pow(player.x - attack.x, 2) + Math.pow(player.y - attack.y, 2)
                     );
                     
                     if (distance < player.size + attack.size/2) {
-                        handlePlayerHit(attack);
+                        collision = true;
+                    }
+                }
+                
+                if (collision) {
+                    handlePlayerHit(attack);
+                    if (!['catnip', 'healingTreats'].includes(attack.type)) {
                         attacks.splice(i, 1);
                     }
                 }
@@ -1576,6 +2001,23 @@
         
         function handlePlayerHit(attack) {
             let damage = 1;
+            let shouldTakeDamage = true;
+            
+            // Handle different attack colors
+            if (attack.attackColor === 'blue') {
+                // Blue attacks only hurt when moving
+                shouldTakeDamage = player.isMoving;
+            } else if (attack.attackColor === 'orange') {
+                // Orange attacks only hurt when still
+                shouldTakeDamage = !player.isMoving;
+            } else if (attack.attackColor === 'green') {
+                // Green attacks heal
+                player.hp = Math.min(player.maxHP, player.hp + 2);
+                updateStats();
+                return;
+            }
+            
+            if (!shouldTakeDamage) return;
             
             // Different attacks do different damage
             switch(attack.type) {
@@ -1583,9 +2025,20 @@
                 case 'scratching':
                     damage = 2;
                     break;
+                case 'enragedSwipe':
+                    damage = 3;
+                    break;
                 case 'treats':
-                    // Treats heal instead of hurt!
-                    player.hp = Math.min(player.maxHP, player.hp + 1);
+                    if (boss.mood !== 'friendly') {
+                        damage = 1;
+                    } else {
+                        player.hp = Math.min(player.maxHP, player.hp + 1);
+                        updateStats();
+                        return;
+                    }
+                    break;
+                case 'healingTreats':
+                    player.hp = Math.min(player.maxHP, player.hp + 2);
                     updateStats();
                     return;
                 case 'catnip':
@@ -1594,13 +2047,15 @@
                     break;
             }
             
-            player.hp = Math.max(0, player.hp - damage);
-            updateStats();
-            
-            if (player.hp <= 0) {
-                gameState = 'gameover';
-                showDialogue("* You have been defeated by Cans! They sit on your keyboard triumphantly. GAME OVER");
-                fadeOutMusic(3000);
+            if (damage > 0) {
+                player.hp = Math.max(0, player.hp - damage);
+                updateStats();
+                
+                // Check for immediate death
+                if (player.hp <= 0 && gameState === 'attack') {
+                    // Don't call handlePlayerDeath here, let the main game loop handle it
+                    return;
+                }
             }
         }
         
