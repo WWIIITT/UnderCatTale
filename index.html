@@ -206,7 +206,7 @@
             height: 100%;
             background: rgba(0, 0, 0, 0.9);
             display: none;
-            z-index: 50;
+            z-index: 1000;
             flex-direction: column;
             justify-content: center;
             align-items: center;
@@ -1644,6 +1644,7 @@
             gameoverText.style.display = 'none';
             dialogue.style.display = 'none';
             menu.style.display = 'none';
+            menu.style.pointerEvents = 'auto'; // Re-enable menu interactions
             menuInstructions.style.display = 'none';
             attackInfo.style.display = 'none'; // Hide attack info on restart
             attackTypeIndicator.style.display = 'none';
@@ -1702,6 +1703,11 @@
         
         // Input handling
         document.addEventListener('keydown', (e) => {
+            // Block all input during win/gameover states except restart
+            if (gameState === 'win' || gameState === 'gameover' || gameState === 'player_death' || gameState === 'death_animation') {
+                return;
+            }
+            
             keys[e.key.toLowerCase()] = true;
             
             // Toggle language with Space or Enter in intro screen
@@ -1764,12 +1770,19 @@
         });
         
         document.addEventListener('keyup', (e) => {
+            // Clear keys on keyup regardless of game state to prevent stuck keys
             keys[e.key.toLowerCase()] = false;
         });
         
         // Menu handling
         document.querySelectorAll('.menu-button').forEach((button, index) => {
             button.addEventListener('click', (e) => {
+                // Block all menu interactions during win/gameover states
+                if (gameState === 'win' || gameState === 'gameover' || gameState === 'player_death' || gameState === 'death_animation') {
+                    e.preventDefault();
+                    return;
+                }
+                
                 if (gameState === 'menu') {
                     // Don't allow clicking destroyed item button
                     if (index === 2 && boss.itemButtonDestroyed) {
@@ -1799,6 +1812,11 @@
         }
         
         function selectMenuItem() {
+            // Block all menu actions during end states
+            if (gameState === 'win' || gameState === 'gameover' || gameState === 'player_death' || gameState === 'death_animation') {
+                return;
+            }
+            
             if (actionSelected || gameState !== 'menu') return;
             
             const actions = ['fight', 'act', 'item', 'mercy'];
@@ -1965,7 +1983,9 @@
             
             fadeOutMusic(2000);
             
+            // Hide and disable menu
             menu.style.display = 'none';
+            menu.style.pointerEvents = 'none';
             menuInstructions.style.display = 'none';
             attackInfo.style.display = 'none';
             attackTypeIndicator.style.display = 'none';
@@ -1998,6 +2018,12 @@
                 dialogueText.textContent = dialogues[endingDialogueIndex];
             } else {
                 dialogue.style.display = 'none';
+                
+                // Ensure menu is hidden and disabled
+                menu.style.display = 'none';
+                menu.style.pointerEvents = 'none';
+                menuInstructions.style.display = 'none';
+                
                 endingOverlay.style.display = 'flex';
                 
                 if (endingType === 'mercy') {
@@ -2021,10 +2047,13 @@
             particles = [];
             playerDeathTimer = 0;
             
+            // Hide and disable menu
+            menu.style.display = 'none';
+            menu.style.pointerEvents = 'none';
+            menuInstructions.style.display = 'none';
+            
             fadeOutMusic(2000);
             
-            menu.style.display = 'none';
-            menuInstructions.style.display = 'none';
             attackInfo.style.display = 'none';
             attackTypeIndicator.style.display = 'none';
             rageModeIndicator.style.display = 'none';
@@ -2061,7 +2090,7 @@
         }
         
         function nextDialogue() {
-            if (gameState === 'win' || gameState === 'gameover' || gameState === 'ending') return;
+            if (gameState === 'win' || gameState === 'gameover' || gameState === 'ending' || gameState === 'player_death' || gameState === 'death_animation') return;
             
             dialogue.style.display = 'none';
             
@@ -2075,6 +2104,11 @@
         }
         
         function startAttackPhase() {
+            // Don't start attack phase if game has ended
+            if (gameState === 'win' || gameState === 'gameover' || gameState === 'player_death' || gameState === 'death_animation') {
+                return;
+            }
+            
             attacks = [];
             particles = [];
             attackTimer = 0;
@@ -2097,6 +2131,13 @@
         }
         
         function endAttackPhase() {
+            // Don't show menu if game has ended
+            if (gameState === 'win' || gameState === 'gameover' || gameState === 'player_death' || gameState === 'death_animation') {
+                attacks = [];
+                particles = [];
+                return;
+            }
+            
             attacks = [];
             particles = [];
             currentAttackSpan.textContent = t('preparing');
@@ -2129,6 +2170,11 @@
         
         // Enhanced Attack patterns with color coding
         function generateRandomAttack() {
+            // Don't generate attacks if game has ended
+            if (gameState === 'win' || gameState === 'gameover' || gameState === 'player_death' || gameState === 'death_animation') {
+                return;
+            }
+            
             // Increase attack frequency and complexity based on boss health and phase
             const healthPercent = boss.hp / boss.maxHP;
             const phase = boss.phase;
@@ -2760,6 +2806,11 @@
                         return;
                     }
                 }
+                else if (gameState === 'menu' || gameState === 'dialogue' || gameState === 'cutscene' || gameState === 'item_destruction_cutscene') {
+                    // Still draw player during menu/dialogue states
+                    drawPlayer();
+                    updateParticles(delta);
+                }
 
                 if (gameState === 'death_animation') {
                     updateDeathAnimation(delta);
@@ -2973,6 +3024,11 @@
         }
         
         function updatePlayer(delta) {
+            // Don't update player during end states
+            if (gameState === 'win' || gameState === 'gameover' || gameState === 'player_death' || gameState === 'death_animation') {
+                return;
+            }
+            
             // Track if player is moving for blue/orange attacks
             player.isMoving = (player.x !== player.lastPosition.x || player.y !== player.lastPosition.y);
             player.lastPosition = { x: player.x, y: player.y };
@@ -3414,6 +3470,11 @@
         }
         
         function checkCollisions() {
+            // Don't check collisions if game has ended
+            if (gameState === 'win' || gameState === 'gameover' || gameState === 'player_death' || gameState === 'death_animation') {
+                return;
+            }
+            
             for (let i = attacks.length - 1; i >= 0; i--) {
                 const attack = attacks[i];
                 let distance;
