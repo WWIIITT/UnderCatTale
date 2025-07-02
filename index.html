@@ -157,11 +157,90 @@
             z-index: 100;
             display: none;
         }
+
+        .audio-controls {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .audio-btn {
+            background: #000;
+            border: 2px solid #fff;
+            color: #fff;
+            padding: 5px 10px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            transition: all 0.2s ease;
+        }
+
+        .audio-btn:hover {
+            background: #fff;
+            color: #000;
+        }
+
+        .volume-control {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .volume-slider {
+            width: 80px;
+            height: 20px;
+            background: #333;
+            border: 1px solid #fff;
+            appearance: none;
+            outline: none;
+        }
+
+        .volume-slider::-webkit-slider-thumb {
+            appearance: none;
+            width: 15px;
+            height: 18px;
+            background: #fff;
+            cursor: pointer;
+        }
+
+        .volume-slider::-moz-range-thumb {
+            width: 15px;
+            height: 18px;
+            background: #fff;
+            cursor: pointer;
+            border: none;
+        }
+
+        .audio-status {
+            color: #00ff00;
+            font-size: 10px;
+        }
     </style>
 </head>
 <body>
     <div id="gameContainer">
         <canvas id="gameCanvas" width="800" height="600"></canvas>
+        
+        <!-- Audio Controls -->
+        <div class="audio-controls">
+            <button class="audio-btn" id="musicToggle">🔊 MUTE</button>
+            <div class="volume-control">
+                <span style="color: #fff; font-size: 12px;">VOL:</span>
+                <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="50">
+                <span class="audio-status" id="audioStatus">READY</span>
+            </div>
+        </div>
+        
+        <!-- Background Music -->
+        <audio id="backgroundMusic" loop preload="auto">
+            <source src="./public/last_goodbye.mp3" type="audio/mpeg">
+            Your browser does not support the audio element.
+        </audio>
         
         <div class="stats">
             <div>HP: <span id="playerHP">20</span>/20</div>
@@ -222,6 +301,16 @@
         const endingOverlay = document.getElementById('endingOverlay');
         const victoryText = document.getElementById('victoryText');
         
+        // Audio elements
+        const backgroundMusic = document.getElementById('backgroundMusic');
+        const musicToggle = document.getElementById('musicToggle');
+        const volumeSlider = document.getElementById('volumeSlider');
+        const audioStatus = document.getElementById('audioStatus');
+        
+        // Audio state
+        let musicPlaying = false;
+        let musicMuted = false;
+        
         // Game state
         let gameState = 'intro'; // intro, menu, attack, dialogue, win, gameover, ending, death_animation
         let player = { 
@@ -253,6 +342,116 @@
         let playerItems = { treats: 3, catnip: 1 };
         let actionSelected = false; // Flag to track if action was selected
         let endingDialogueIndex = 0;
+        
+        // Audio Functions
+        function initializeAudio() {
+            // Set initial volume
+            backgroundMusic.volume = volumeSlider.value / 100;
+            
+            // Audio event listeners
+            backgroundMusic.addEventListener('loadstart', () => {
+                audioStatus.textContent = 'LOADING';
+                audioStatus.style.color = '#ffff00';
+            });
+            
+            backgroundMusic.addEventListener('canplay', () => {
+                audioStatus.textContent = 'READY';
+                audioStatus.style.color = '#00ff00';
+            });
+            
+            backgroundMusic.addEventListener('error', (e) => {
+                audioStatus.textContent = 'ERROR';
+                audioStatus.style.color = '#ff0000';
+                console.error('Audio error:', e);
+            });
+            
+            backgroundMusic.addEventListener('play', () => {
+                musicPlaying = true;
+                audioStatus.textContent = 'PLAYING';
+                audioStatus.style.color = '#00ff00';
+            });
+            
+            backgroundMusic.addEventListener('pause', () => {
+                musicPlaying = false;
+                audioStatus.textContent = 'PAUSED';
+                audioStatus.style.color = '#ffff00';
+            });
+        }
+        
+        function startMusic() {
+            if (!musicMuted && backgroundMusic.readyState >= 2) {
+                const playPromise = backgroundMusic.play();
+                if (playPromise !== undefined) {
+                    playPromise.then(() => {
+                        console.log('Music started successfully');
+                    }).catch(error => {
+                        console.log('Auto-play was prevented:', error);
+                        audioStatus.textContent = 'CLICK TO PLAY';
+                        audioStatus.style.color = '#ff0000';
+                    });
+                }
+            }
+        }
+        
+        function stopMusic() {
+            backgroundMusic.pause();
+            backgroundMusic.currentTime = 0;
+        }
+        
+        function toggleMusic() {
+            musicMuted = !musicMuted;
+            if (musicMuted) {
+                backgroundMusic.pause();
+                musicToggle.textContent = '🔇 UNMUTE';
+                audioStatus.textContent = 'MUTED';
+                audioStatus.style.color = '#ff0000';
+            } else {
+                startMusic();
+                musicToggle.textContent = '🔊 MUTE';
+            }
+        }
+        
+        function updateVolume() {
+            backgroundMusic.volume = volumeSlider.value / 100;
+        }
+        
+        function fadeOutMusic(duration = 2000) {
+            const startVolume = backgroundMusic.volume;
+            const fadeStep = startVolume / (duration / 50);
+            
+            const fadeInterval = setInterval(() => {
+                if (backgroundMusic.volume > 0) {
+                    backgroundMusic.volume = Math.max(0, backgroundMusic.volume - fadeStep);
+                } else {
+                    clearInterval(fadeInterval);
+                    backgroundMusic.pause();
+                }
+            }, 50);
+        }
+        
+        function fadeInMusic(duration = 2000) {
+            const targetVolume = volumeSlider.value / 100;
+            backgroundMusic.volume = 0;
+            if (!musicMuted) {
+                startMusic();
+                const fadeStep = targetVolume / (duration / 50);
+                
+                const fadeInterval = setInterval(() => {
+                    if (backgroundMusic.volume < targetVolume) {
+                        backgroundMusic.volume = Math.min(targetVolume, backgroundMusic.volume + fadeStep);
+                    } else {
+                        clearInterval(fadeInterval);
+                    }
+                }, 50);
+            }
+        }
+        
+        // Audio Control Event Listeners
+        musicToggle.addEventListener('click', toggleMusic);
+        volumeSlider.addEventListener('input', updateVolume);
+        
+        // Initialize audio when page loads
+        initializeAudio();
         
         // Enhanced cat boss dialogues
         const bossDialogues = [
@@ -455,6 +654,9 @@
             attacks = []; // Clear all attacks
             particles = []; // Clear all particles
             
+            // Fade out music for dramatic effect
+            fadeOutMusic(2000);
+            
             // Hide UI elements
             menu.style.display = 'none';
             menuInstructions.style.display = 'none';
@@ -465,6 +667,12 @@
                 gameState = 'ending';
                 endingDialogueIndex = 0;
                 showEndingDialogue();
+                // Fade music back in but softer for ending
+                setTimeout(() => {
+                    const currentVolume = volumeSlider.value;
+                    volumeSlider.value = Math.max(20, currentVolume * 0.5);
+                    fadeInMusic(3000);
+                }, 1000);
             }, 3000); // 3 seconds of death animation
         }
 
@@ -484,6 +692,9 @@
                 endingOverlay.style.display = 'block';
                 victoryText.style.display = 'block';
                 gameState = 'win';
+                // Victory music moment - restore volume
+                volumeSlider.value = Math.min(70, volumeSlider.value * 1.5);
+                updateVolume();
             }
         }
         
@@ -491,6 +702,9 @@
             instructions.style.display = 'none';
             gameState = 'dialogue';
             showDialogue(bossDialogues[0]);
+            
+            // Start the background music when game begins
+            startMusic();
         }
         
         function showDialogue(text) {
@@ -1386,6 +1600,7 @@
             if (player.hp <= 0) {
                 gameState = 'gameover';
                 showDialogue("* You have been defeated by Cans! They sit on your keyboard triumphantly. GAME OVER");
+                fadeOutMusic(3000);
             }
         }
         
