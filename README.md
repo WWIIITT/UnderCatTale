@@ -139,4 +139,4 @@ We welcome contributions! Here's how you can help:
 ---
 
 *Experience the ultimate cat battle. Will you fight or show mercy to Cans?*
-```
+
