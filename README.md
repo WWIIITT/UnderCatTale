@@ -5,8 +5,8 @@ A browser-based RPG parody game inspired by Undertale, featuring Cans - the ulti
 
 ## 🎬 Game Demo
 
-https://github.com/WWIIITT/UnderCatTale/blob/main/public/Demo_1.5x_480P.mp4
 
+[![](https://github.com/WWIIITT/UnderCatTale/blob/main/public/UNDERCATTALE2.png)](https://github.com/WWIIITT/UnderCatTale/blob/main/public/Demo_1.5x_480P.mp4)
 
 ## 🎮 Game Features
 
