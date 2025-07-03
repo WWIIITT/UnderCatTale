@@ -1,5 +1,5 @@
 # UnderCatTale
-<img src="public/UNDERCATTALE1.png" alt="UnderCatTale" width="400" align="center">
+<img src="public/UNDERCATTALE2.png" alt="UnderCatTale" width="400" align="center">
 
 A browser-based RPG parody game inspired by Undertale, featuring Cans - the ultimate cat boss. Experience an epic battle system with multiple attack patterns, moral choices, and dynamic music that adapts to your decisions.
 
