@@ -1,5 +1,6 @@
 # UnderCatTale
 <img src="public/UNDERCATTALE.png" alt="UnderCatTale" width="400" align="center">
+
 A browser-based RPG parody game inspired by Undertale, featuring Cans - the ultimate cat boss. Experience an epic battle system with multiple attack patterns, moral choices, and dynamic music that adapts to your decisions.
 
 ## 🎮 Game Features
@@ -138,5 +139,6 @@ We welcome contributions! Here's how you can help:
 
 ---
 
-*Experience the ultimate cat battle. Will you fight or show mercy to Cans?*
+**Disclaimer:** 
+- This is a fan-made project inspired by Undertale by Toby Fox. All original Undertale assets belong to their respective owners. This project is not affiliated with or endorsed by the original creators.
 
