@@ -140,5 +140,3 @@ We welcome contributions! Here's how you can help:
 
 *Experience the ultimate cat battle. Will you fight or show mercy to Cans?*
 ```
-
-This README provides a comprehensive overview of the UnderCatTale game, highlighting its features, technical implementation, and instructions for both players and developers. The Chinese name "猫咪传说" (Māomī Chuánshuō) captures the epic nature of the cat battle while being easy to remember and pronounce.
