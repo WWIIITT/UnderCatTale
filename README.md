@@ -3,6 +3,11 @@
 
 A browser-based RPG parody game inspired by Undertale, featuring Cans - the ultimate cat boss. Experience an epic battle system with multiple attack patterns, moral choices, and dynamic music that adapts to your decisions.
 
+## 🎬 Game Demo
+
+https://github.com/WWIIITT/UnderCatTale/blob/main/public/Demo_1.5x_480P.mp4
+
+
 ## 🎮 Game Features
 
 ### Core Gameplay
