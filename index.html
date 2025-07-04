@@ -1510,7 +1510,7 @@
                 rageModeIndicator.style.display = 'block';
                 
                 // Add emergency heals for rage mode
-                playerItems.emergencyHeal = 2;
+                playerItems.emergencyHeal = 1; // REDUCED from 2 to 1
                 boss.emergencyHealsUsed = 0; // Reset counter
                 
                 const currentVolume = currentMusic.volume;
@@ -2203,8 +2203,8 @@
             
             attackTypeIndicator.style.display = 'block';
             
-            // Attack phase lasts 5-8 seconds based on boss health
-            const phaseDuration = boss.hp > 125 ? 5000 : (boss.hp > 75 ? 6500 : 8000);
+            // Attack phase lasts 4-6 seconds (REDUCED from 5-8 seconds)
+            const phaseDuration = boss.hp > 125 ? 4000 : (boss.hp > 75 ? 5000 : 6000);
             setTimeout(() => {
                 endAttackPhase();
             }, phaseDuration);
@@ -2247,7 +2247,7 @@
             statusEffect.textContent = statusText;
         }
         
-        // Enhanced Attack patterns with MORE complexity and BETTER green patterns
+        // Enhanced Attack patterns with MORE complexity and REDUCED HEALING
         function generateRandomAttack() {
             // Don't generate attacks if game has ended or not in attack state
             if (gameState !== 'attack' || attacks.length > 50) { // Prevent overflow
@@ -2275,16 +2275,16 @@
             if (phase >= 4) attackPool.push(...expertAttacks);
             if (phase >= 5) attackPool.push(...masterAttacks);
             
-            // Boss mood affects attack selection with more complexity
+            // Boss mood affects attack selection with REDUCED healing chances
             if (boss.mood === 'friendly') {
                 attackPool = ['healingTreats', 'spiralHealing', 'flowingHealing', 'healingWave'];
                 attackTypeUsed = 'green';
             } else if (boss.mood === 'enraged' || boss.enragedMode) {
                 if (musicPath === 'genocide') {
                     attackPool = ['megalovania', 'determination', 'enragedSwipe', 'comboAttack', 'blueBones', 'orangeZoomies'];
-                    // Enhanced healing opportunities in rage mode with more variety
-                    if (Math.random() < 0.12 && boss.rageHealingBonus) { // Increased from 0.075
-                        const healingAttacks = ['mercyHealing', 'emergencyTreats', 'spiralHealing', 'healingBurst'];
+                    // REDUCED healing opportunities in rage mode
+                    if (Math.random() < 0.06 && boss.rageHealingBonus) { // REDUCED from 0.12 to 0.06
+                        const healingAttacks = ['mercyHealing', 'emergencyTreats'];
                         attackPool.push(...healingAttacks);
                     }
                 } else {
@@ -2371,38 +2371,42 @@
                         setTimeout(() => createBlueBonesAttack(), 1200); // Reduced from 1800
                     }
                 },
-                // Pattern 2: Healing focus
+                // Pattern 2: Healing focus - REDUCED healing
                 () => {
                     setTimeout(() => createFishBoneAttack(), 0);
-                    setTimeout(() => createSpiralHealingAttack(), 500); // Reduced from 800
-                    setTimeout(() => createZoomiesAttack(), 1000); // Reduced from 1600
+                    if (Math.random() < 0.5) { // REDUCED from always to 50% chance
+                        setTimeout(() => createSpiralHealingAttack(), 500);
+                    }
+                    setTimeout(() => createZoomiesAttack(), 1000);
                 },
                 // Pattern 3: Complex mix
                 () => {
                     setTimeout(() => createStringAttack(), 0);
-                    setTimeout(() => createOrangeZoomiesAttack(), 300); // Reduced from 500
-                    setTimeout(() => createHealingWaveAttack(), 600); // Reduced from 1000
-                    setTimeout(() => createMouseToyAttack(), 900); // Reduced from 1500
+                    setTimeout(() => createOrangeZoomiesAttack(), 300);
+                    if (Math.random() < 0.3) { // REDUCED from always to 30% chance
+                        setTimeout(() => createHealingWaveAttack(), 600);
+                    }
+                    setTimeout(() => createMouseToyAttack(), 900);
                 }
             ];
             
             const pattern = comboPatterns[Math.floor(Math.random() * comboPatterns.length)];
             pattern();
             
-            // Add healing opportunity in combo attacks during rage mode - enhanced
-            if (boss.rageHealingBonus && Math.random() < 0.4) { // Increased from 0.3
-                setTimeout(() => createMercyHealingAttack(), 1500); // Reduced from 2200
+            // REDUCED healing opportunity in combo attacks during rage mode
+            if (boss.rageHealingBonus && Math.random() < 0.2) { // REDUCED from 0.4 to 0.2
+                setTimeout(() => createMercyHealingAttack(), 1500);
             }
         }
 
-        // NEW DYNAMIC GREEN HEALING ATTACKS
+        // REDUCED HEALING ATTACK FUNCTIONS
         function createSpiralHealingAttack() {
-            // Creates a dynamic spiral of healing particles - REDUCED DELAYS
+            // REDUCED spiral count
             currentAttackSpan.textContent = t('attackNames')['spiralHealing'];
             
-            for (let i = 0; i < 8; i++) {
+            for (let i = 0; i < 4; i++) { // REDUCED from 8 to 4
                 setTimeout(() => {
-                    const angle = (i / 8) * Math.PI * 2;
+                    const angle = (i / 4) * Math.PI * 2;
                     const radius = 80 + i * 15;
                     const centerX = battleBox.x + battleBox.width / 2;
                     const centerY = battleBox.y + battleBox.height / 2;
@@ -2420,21 +2424,21 @@
                         trail: [],
                         spiralSpeed: 0.08
                     });
-                }, i * 100); // Reduced from 150
+                }, i * 100);
             }
         }
 
         function createHealingWaveAttack() {
-            // Creates waves of healing that flow across the screen - REDUCED DELAYS
+            // REDUCED wave count
             currentAttackSpan.textContent = t('attackNames')['healingWave'];
             
-            for (let wave = 0; wave < 3; wave++) {
+            for (let wave = 0; wave < 2; wave++) { // REDUCED from 3 to 2
                 setTimeout(() => {
-                    for (let i = 0; i < 6; i++) {
+                    for (let i = 0; i < 3; i++) { // REDUCED from 6 to 3
                         attacks.push({
                             type: 'healingWave',
                             x: battleBox.x - 20,
-                            y: battleBox.y + i * (battleBox.height / 5),
+                            y: battleBox.y + i * (battleBox.height / 2),
                             dx: 3 + wave * 0.5,
                             dy: Math.sin(i + wave) * 1.5,
                             size: 10,
@@ -2444,23 +2448,23 @@
                             waveOffset: i + wave * 3
                         });
                     }
-                }, wave * 500); // Reduced from 800
+                }, wave * 500);
             }
         }
 
         function createHealingBurstAttack() {
-            // Creates bursts of healing that expand outward
+            // REDUCED burst count
             currentAttackSpan.textContent = t('attackNames')['healingBurst'];
             
             const burstCenters = [
-                { x: battleBox.x + battleBox.width * 0.3, y: battleBox.y + battleBox.height * 0.3 },
-                { x: battleBox.x + battleBox.width * 0.7, y: battleBox.y + battleBox.height * 0.7 }
+                { x: battleBox.x + battleBox.width * 0.3, y: battleBox.y + battleBox.height * 0.3 }
+                // REMOVED second burst center
             ];
             
             burstCenters.forEach((center, burstIndex) => {
                 setTimeout(() => {
-                    for (let i = 0; i < 8; i++) {
-                        const angle = (i / 8) * Math.PI * 2;
+                    for (let i = 0; i < 4; i++) { // REDUCED from 8 to 4
+                        const angle = (i / 4) * Math.PI * 2;
                         attacks.push({
                             type: 'healingBurst',
                             x: center.x,
@@ -2479,10 +2483,10 @@
         }
 
         function createFlowingHealingAttack() {
-            // Creates flowing healing particles that follow curved paths
+            // REDUCED count
             currentAttackSpan.textContent = t('attackNames')['flowingHealing'];
             
-            for (let i = 0; i < 5; i++) {
+            for (let i = 0; i < 3; i++) { // REDUCED from 5 to 3
                 setTimeout(() => {
                     attacks.push({
                         type: 'flowingHealing',
@@ -2501,13 +2505,13 @@
             }
         }
 
-        // Enhanced original healing attacks for rage mode
+        // REDUCED original healing attacks for rage mode
         function createMercyHealingAttack() {
-            // Enhanced: Creates a more dynamic wave of healing particles
-            for (let i = 0; i < 4; i++) { // Increased from 3
+            // REDUCED count
+            for (let i = 0; i < 2; i++) { // REDUCED from 4 to 2
                 attacks.push({
                     type: 'mercyHealing',
-                    x: battleBox.x + (i + 0.5) * (battleBox.width / 4),
+                    x: battleBox.x + (i + 0.5) * (battleBox.width / 2),
                     y: battleBox.y - 10,
                     dx: (Math.random() - 0.5) * 1,
                     dy: 1.5 + Math.random(),
@@ -2520,9 +2524,9 @@
         }
 
         function createEmergencyTreatsAttack() {
-            // Enhanced: Creates more healing opportunities with movement
-            for (let i = 0; i < 3; i++) { // Increased from 2
-                const x = battleBox.x + (i + 0.5) * (battleBox.width / 3);
+            // REDUCED count
+            for (let i = 0; i < 2; i++) { // REDUCED from 3 to 2
+                const x = battleBox.x + (i + 0.5) * (battleBox.width / 2);
                 attacks.push({
                     type: 'emergencyTreats',
                     x: x,
@@ -2533,7 +2537,7 @@
                     color: '#00ff44',
                     attackColor: 'green',
                     healAmount: 5,
-                    timer: 200, // Increased lifetime
+                    timer: 200,
                     pulse: 0
                 });
             }
@@ -2701,8 +2705,8 @@
         }
         
         function createHealingTreatsAttack() {
-            // Enhanced: More dynamic healing positions
-            const count = boss.rageHealingBonus ? 4 : 3; // Increased
+            // REDUCED healing positions
+            const count = boss.rageHealingBonus ? 2 : 1; // REDUCED from 4:3 to 2:1
             
             for (let i = 0; i < count; i++) {
                 const x = battleBox.x + Math.random() * battleBox.width;
@@ -2985,7 +2989,7 @@
         function createTreatShowerAttack() {
             // Enhanced: More dynamic shower patterns - REDUCED DELAYS
             const count = boss.phase >= 3 ? 18 : 15;
-            const healingTreats = boss.mood === 'friendly' || (boss.rageHealingBonus && Math.random() < 0.15);
+            const healingTreats = boss.mood === 'friendly' || (boss.rageHealingBonus && Math.random() < 0.08); // REDUCED from 0.15 to 0.08
             
             for (let i = 0; i < count; i++) {
                 const x = battleBox.x + Math.random() * battleBox.width;
@@ -3171,7 +3175,7 @@
             });
         }
         
-        // Simplified game loop without complex delta time but with better clearing
+        // Simplified game loop without complex delta time but with better clearing and FASTER ATTACKS
         function gameLoop() {
             frameCount++;
             
@@ -3200,9 +3204,9 @@
                 attackPhaseTimer++;
                 attackTimer++;
                 
-                // Generate attacks based on boss phase and health - Slower timing
-                const baseFrequency = Math.max(45, 140 - boss.phase * 10 - (boss.enragedMode ? 20 : 0));
-                const variableFrequency = baseFrequency + Math.sin(frameCount * 0.08) * 15; // Add some variance
+                // Generate attacks based on boss phase and health - FASTER TIMING
+                const baseFrequency = Math.max(30, 90 - boss.phase * 8 - (boss.enragedMode ? 15 : 0)); // REDUCED from 45,140-10-20 to 30,90-8-15
+                const variableFrequency = baseFrequency + Math.sin(frameCount * 0.08) * 10; // REDUCED variance from 15 to 10
                 
                 if (frameCount % Math.floor(variableFrequency) === 0) {
                     generateRandomAttack();
