@@ -2203,8 +2203,13 @@
             
             attackTypeIndicator.style.display = 'block';
             
-            // Attack phase lasts 4-6 seconds (REDUCED from 5-8 seconds)
-            const phaseDuration = boss.hp > 125 ? 4000 : (boss.hp > 75 ? 5000 : 6000);
+            // ⚡ START FIRST ATTACK IMMEDIATELY
+            setTimeout(() => {
+                generateRandomAttack();
+            }, 200); // Start first attack after 0.2 seconds
+            
+            // Attack phase lasts 5-8 seconds - attacks start fast but last longer  
+            const phaseDuration = boss.hp > 125 ? 5000 : (boss.hp > 75 ? 6500 : 8000);
             setTimeout(() => {
                 endAttackPhase();
             }, phaseDuration);
@@ -3204,9 +3209,9 @@
                 attackPhaseTimer++;
                 attackTimer++;
                 
-                // Generate attacks based on boss phase and health - FASTER TIMING
-                const baseFrequency = Math.max(30, 90 - boss.phase * 8 - (boss.enragedMode ? 15 : 0)); // REDUCED from 45,140-10-20 to 30,90-8-15
-                const variableFrequency = baseFrequency + Math.sin(frameCount * 0.08) * 10; // REDUCED variance from 15 to 10
+                // Generate attacks based on boss phase and health - FASTER AND SMOOTHER
+                const baseFrequency = Math.max(20, 60 - boss.phase * 6 - (boss.enragedMode ? 12 : 0)); // REDUCED from 30,90-8-15
+                const variableFrequency = baseFrequency + Math.sin(frameCount * 0.12) * 8; // INCREASED frequency variation
                 
                 if (frameCount % Math.floor(variableFrequency) === 0) {
                     generateRandomAttack();
