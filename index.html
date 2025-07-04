@@ -551,10 +551,8 @@
     </div>
 
     <script>
-        // Delta time for frame-rate independent movement
-        let lastTime = 0;
-        const targetFPS = 60;
-        const frameTime = 1000 / targetFPS;
+        // Simplified frame rate system
+        let frameCount = 0;
         
         // Image loading
         const catPawImage = new Image();
@@ -765,7 +763,11 @@
                     'megalovania': 'MEGALO-PAW-NIA',
                     'determination': 'Feline Determination',
                     'mercyHealing': 'Merciful Healing Wave',
-                    'emergencyTreats': 'Emergency Treat Supply'
+                    'emergencyTreats': 'Emergency Treat Supply',
+                    'healingWave': 'Healing Wave',
+                    'spiralHealing': 'Spiral of Compassion',
+                    'healingBurst': 'Compassionate Burst',
+                    'flowingHealing': 'Flowing Grace'
                 },
                 
                 feelSleepy: ' (You feel sleepy...)',
@@ -967,7 +969,11 @@
                     'megalovania': '巨大貓掌曲',
                     'determination': '貓科決心',
                     'mercyHealing': '仁慈治療波',
-                    'emergencyTreats': '緊急零食補給'
+                    'emergencyTreats': '緊急零食補給',
+                    'healingWave': '治療波',
+                    'spiralHealing': '慈悲螺旋',
+                    'healingBurst': '慈悲爆發',
+                    'flowingHealing': '流動恩典'
                 },
                 
                 feelSleepy: '（你感到昏昏欲睡...）',
@@ -1176,8 +1182,46 @@
             blueBones: 0,
             orangeZoomies: 0,
             string: 0,
-            scratching: 0
+            scratching: 0,
+            healingPattern: 0
         };
+        
+        // Enhanced clearing functions
+        function forceCompleteClearing() {
+            console.log("🧹 FORCE COMPLETE CLEARING");
+            
+            // Clear arrays completely
+            attacks.splice(0, attacks.length);
+            particles.splice(0, particles.length);
+            
+            // Force clear canvas with multiple passes
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.save();
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.restore();
+            
+            // Reset timers
+            attackTimer = 0;
+            attackPhaseTimer = 0;
+            
+            console.log("✅ Complete clearing finished");
+        }
+        
+        function clearGameVisuals() {
+            console.log("🧹 Clearing game visuals");
+            
+            // Hide all UI elements
+            menu.style.display = 'none';
+            menuInstructions.style.display = 'none';
+            dialogue.style.display = 'none';
+            attackInfo.style.display = 'none';
+            attackTypeIndicator.style.display = 'none';
+            
+            // Force complete clearing
+            forceCompleteClearing();
+        }
         
         // Audio Functions
         function initializeAudio() {
@@ -1234,16 +1278,9 @@
             gameState = 'cutscene';
             cutsceneStep = 0;
             
-            // Hide all UI elements
-            menu.style.display = 'none';
-            menuInstructions.style.display = 'none';
-            dialogue.style.display = 'none';
-            attackInfo.style.display = 'none';
-            attackTypeIndicator.style.display = 'none';
-            
-            // Clear attacks and particles
-            attacks = [];
-            particles = [];
+            // Force complete clearing
+            forceCompleteClearing();
+            clearGameVisuals();
             
             // Start the cutscene
             showCutsceneDialogue();
@@ -1264,16 +1301,9 @@
             gameState = 'item_destruction_cutscene';
             cutsceneStep = 0;
             
-            // Hide all UI elements
-            menu.style.display = 'none';
-            menuInstructions.style.display = 'none';
-            dialogue.style.display = 'none';
-            attackInfo.style.display = 'none';
-            attackTypeIndicator.style.display = 'none';
-            
-            // Clear attacks and particles
-            attacks = [];
-            particles = [];
+            // Force complete clearing
+            forceCompleteClearing();
+            clearGameVisuals();
             
             // Start the item destruction cutscene
             showItemDestructionCutscene();
@@ -1332,28 +1362,28 @@
                 style.textContent = `.menu-button.destroyed::before { content: '✗ ${t('destroyedMessage')} ✗' !important; }`;
                 document.head.appendChild(style);
                 
-                // Create massive destruction particle explosion
-                for (let i = 0; i < 50; i++) {
+                // Create destruction particle explosion - reduced number
+                for (let i = 0; i < 15; i++) {
                     particles.push({
                         type: 'destruction',
-                        x: 400 + (Math.random() - 0.5) * 150,
-                        y: 500 + (Math.random() - 0.5) * 80,
-                        dx: (Math.random() - 0.5) * 12,
-                        dy: (Math.random() - 0.5) * 12 - 5,
-                        timer: 180,
+                        x: 400 + (Math.random() - 0.5) * 100,
+                        y: 500 + (Math.random() - 0.5) * 60,
+                        dx: (Math.random() - 0.5) * 6,
+                        dy: (Math.random() - 0.5) * 6 - 2,
+                        timer: 90,
                         color: Math.random() < 0.5 ? '#ff0000' : '#ffff00',
-                        size: Math.random() * 6 + 3
+                        size: Math.random() * 3 + 2
                     });
                 }
                 
-                // Add screen shake effect
+                // Add screen shake effect - simplified
                 let shakeCount = 0;
                 const shakeInterval = setInterval(() => {
                     document.getElementById('gameContainer').style.transform = 
-                        `translate(${(Math.random() - 0.5) * 10}px, ${(Math.random() - 0.5) * 10}px)`;
+                        `translate(${(Math.random() - 0.5) * 4}px, ${(Math.random() - 0.5) * 4}px)`;
                     shakeCount++;
                     
-                    if (shakeCount > 20) {
+                    if (shakeCount > 8) {
                         clearInterval(shakeInterval);
                         document.getElementById('gameContainer').style.transform = 'translate(0px, 0px)';
                     }
@@ -1606,6 +1636,9 @@
                 gameLoopId = null;
             }
             
+            // Force complete clearing first
+            forceCompleteClearing();
+            
             // Reset all game state
             gameState = 'intro';
             player = { 
@@ -1641,9 +1674,6 @@
                 itemButtonDestroyed: false,
                 emergencyHealsUsed: 0
             };
-            attacks = [];
-            particles = [];
-            keys = {};
             selectedMenuItem = 0;
             attackTimer = 0;
             currentAttackType = '';
@@ -1656,6 +1686,7 @@
             attackPhaseTimer = 0;
             musicPath = 'neutral';
             cutsceneStep = 0;
+            frameCount = 0;
 
             // Reset attack pattern counters
             attackPatternCounters = {
@@ -1664,13 +1695,21 @@
                 blueBones: 0,
                 orangeZoomies: 0,
                 string: 0,
-                scratching: 0
+                scratching: 0,
+                healingPattern: 0
             };
 
-            // Clear canvas completely
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = '#000';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            // Clear arrays completely
+            attacks.splice(0, attacks.length);
+            particles.splice(0, particles.length);
+            keys = {};
+
+            // Multiple canvas clearing passes
+            for (let i = 0; i < 3; i++) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#000';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
 
             // Hide ALL UI elements first
             endingOverlay.style.display = 'none';
@@ -2012,8 +2051,10 @@
         function startEnding() {
             gameState = 'death_animation';
             boss.deathTimer = 0;
-            attacks = [];
-            particles = [];
+            
+            // Force complete clearing
+            forceCompleteClearing();
+            clearGameVisuals();
             
             fadeOutMusic(2000);
             
@@ -2077,8 +2118,11 @@
 
         function handlePlayerDeath() {
             gameState = 'player_death';
-            attacks = [];
-            particles = [];
+            
+            // Force complete clearing
+            forceCompleteClearing();
+            clearGameVisuals();
+            
             playerDeathTimer = 0;
             
             // Hide and disable menu
@@ -2143,9 +2187,8 @@
                 return;
             }
             
-            attacks = [];
-            particles = [];
-            attackTimer = 0;
+            // Force complete clearing before starting new attack phase
+            forceCompleteClearing();
             actionSelected = false;
             
             player.x = battleBox.x + battleBox.width / 2;
@@ -2170,13 +2213,12 @@
         function endAttackPhase() {
             // Don't show menu if game has ended
             if (gameState === 'win' || gameState === 'gameover' || gameState === 'player_death' || gameState === 'death_animation') {
-                attacks = [];
-                particles = [];
+                forceCompleteClearing();
                 return;
             }
             
-            attacks = [];
-            particles = [];
+            // Force complete clearing when ending attack phase
+            forceCompleteClearing();
             currentAttackSpan.textContent = t('preparing');
             attackTypeIndicator.style.display = 'none';
             
@@ -2205,10 +2247,10 @@
             statusEffect.textContent = statusText;
         }
         
-        // Enhanced Attack patterns with FIXED patterns (no more random)
+        // Enhanced Attack patterns with MORE complexity and BETTER green patterns
         function generateRandomAttack() {
-            // Don't generate attacks if game has ended
-            if (gameState === 'win' || gameState === 'gameover' || gameState === 'player_death' || gameState === 'death_animation') {
+            // Don't generate attacks if game has ended or not in attack state
+            if (gameState !== 'attack' || attacks.length > 50) { // Prevent overflow
                 return;
             }
             
@@ -2219,55 +2261,54 @@
             let attackPool = [];
             let attackTypeUsed = 'white';
             
-            // Basic attacks (always available)
-            attackPool.push('yarnball', 'fishbone', 'pawswipe', 'laser');
+            // Enhanced attack pools with more variety
+            const basicAttacks = ['yarnball', 'fishbone', 'pawswipe', 'laser'];
+            const mediumAttacks = ['catnip', 'zoomies', 'mouse', 'string'];
+            const advancedAttacks = ['treats', 'cardboard', 'scratching', 'hiding'];
+            const expertAttacks = ['hairball', 'litter', 'blueBones', 'orangeZoomies'];
+            const masterAttacks = ['determination', 'megalovania', 'enragedSwipe'];
             
-            // Phase-based attacks
-            if (phase >= 2) {
-                attackPool.push('catnip', 'zoomies', 'mouse');
-            }
-            if (phase >= 3) {
-                attackPool.push('treats', 'cardboard', 'string');
-            }
-            if (phase >= 4) {
-                attackPool.push('hairball', 'scratching', 'hiding');
-            }
-            if (phase >= 5) {
-                attackPool.push('litter', 'blueBones', 'orangeZoomies');
-            }
+            // Build attack pool based on phase
+            attackPool.push(...basicAttacks);
+            if (phase >= 2) attackPool.push(...mediumAttacks);
+            if (phase >= 3) attackPool.push(...advancedAttacks);
+            if (phase >= 4) attackPool.push(...expertAttacks);
+            if (phase >= 5) attackPool.push(...masterAttacks);
             
-            // Boss mood affects attack selection
+            // Boss mood affects attack selection with more complexity
             if (boss.mood === 'friendly') {
-                attackPool = ['healingTreats', 'catnip', 'treats'];
+                attackPool = ['healingTreats', 'spiralHealing', 'flowingHealing', 'healingWave'];
                 attackTypeUsed = 'green';
             } else if (boss.mood === 'enraged' || boss.enragedMode) {
                 if (musicPath === 'genocide') {
                     attackPool = ['megalovania', 'determination', 'enragedSwipe', 'comboAttack', 'blueBones', 'orangeZoomies'];
-                    // Add healing opportunities in rage mode - reduced to half
-                    if (Math.random() < 0.075 && boss.rageHealingBonus) {
-                        attackPool.push('mercyHealing', 'emergencyTreats');
+                    // Enhanced healing opportunities in rage mode with more variety
+                    if (Math.random() < 0.12 && boss.rageHealingBonus) { // Increased from 0.075
+                        const healingAttacks = ['mercyHealing', 'emergencyTreats', 'spiralHealing', 'healingBurst'];
+                        attackPool.push(...healingAttacks);
                     }
                 } else {
-                    attackPool = ['enragedSwipe', 'comboAttack', 'blueBones', 'orangeZoomies'];
+                    attackPool = ['enragedSwipe', 'comboAttack', 'blueBones', 'orangeZoomies', 'determination'];
                 }
                 attackTypeUsed = 'mixed';
             }
             
-            // Chance for combination attacks at higher phases
-            if (phase >= 4 && Math.random() < 0.3) {
-                createComboAttack();
+            // Enhanced combination attack chances
+            if (phase >= 3 && Math.random() < 0.35) { // Increased from 0.3
+                createEnhancedComboAttack();
                 attackTypeUsed = 'mixed';
             } else {
                 const attackType = attackPool[Math.floor(Math.random() * attackPool.length)];
                 currentAttackType = attackType;
                 currentAttackSpan.textContent = t('attackNames')[attackType] || attackType;
                 
-                // Set attack tip based on attack type
+                // Enhanced attack type detection
                 if (attackType.includes('blue') || attackType === 'blueBones') {
                     attackTypeUsed = 'blue';
                 } else if (attackType.includes('orange') || attackType === 'orangeZoomies') {
                     attackTypeUsed = 'orange';
-                } else if (attackType === 'healingTreats' || (attackType === 'treats' && boss.mood === 'friendly') || 
+                } else if (attackType.includes('healing') || attackType.includes('Healing') || 
+                          (attackType === 'treats' && boss.mood === 'friendly') || 
                           attackType === 'mercyHealing' || attackType === 'emergencyTreats') {
                     attackTypeUsed = 'green';
                 }
@@ -2308,38 +2349,170 @@
                 case 'determination': createDeterminationAttack(); break;
                 case 'mercyHealing': createMercyHealingAttack(); break;
                 case 'emergencyTreats': createEmergencyTreatsAttack(); break;
+                case 'spiralHealing': createSpiralHealingAttack(); break;
+                case 'healingWave': createHealingWaveAttack(); break;
+                case 'healingBurst': createHealingBurstAttack(); break;
+                case 'flowingHealing': createFlowingHealingAttack(); break;
                 default: createYarnBallAttack();
             }
         }
         
-        function createComboAttack() {
+        function createEnhancedComboAttack() {
             currentAttackSpan.textContent = t('attackNames')['comboAttack'];
             
-            // Create multiple attacks in sequence
-            setTimeout(() => createYarnBallAttack(), 0);
-            setTimeout(() => createLaserPointerAttack(), 800);
-            setTimeout(() => createPawSwipeAttack(), 1600);
-            if (boss.phase >= 5) {
-                setTimeout(() => createBlueBonesAttack(), 2400);
-            }
-            // Add healing opportunity in combo attacks during rage mode - reduced chance
-            if (boss.rageHealingBonus && Math.random() < 0.3) {
-                setTimeout(() => createMercyHealingAttack(), 3200);
+            // Enhanced combo with more variety - REDUCED DELAYS
+            const comboPatterns = [
+                // Pattern 1: Classic combo
+                () => {
+                    setTimeout(() => createYarnBallAttack(), 0);
+                    setTimeout(() => createLaserPointerAttack(), 400); // Reduced from 600
+                    setTimeout(() => createPawSwipeAttack(), 800); // Reduced from 1200
+                    if (boss.phase >= 5) {
+                        setTimeout(() => createBlueBonesAttack(), 1200); // Reduced from 1800
+                    }
+                },
+                // Pattern 2: Healing focus
+                () => {
+                    setTimeout(() => createFishBoneAttack(), 0);
+                    setTimeout(() => createSpiralHealingAttack(), 500); // Reduced from 800
+                    setTimeout(() => createZoomiesAttack(), 1000); // Reduced from 1600
+                },
+                // Pattern 3: Complex mix
+                () => {
+                    setTimeout(() => createStringAttack(), 0);
+                    setTimeout(() => createOrangeZoomiesAttack(), 300); // Reduced from 500
+                    setTimeout(() => createHealingWaveAttack(), 600); // Reduced from 1000
+                    setTimeout(() => createMouseToyAttack(), 900); // Reduced from 1500
+                }
+            ];
+            
+            const pattern = comboPatterns[Math.floor(Math.random() * comboPatterns.length)];
+            pattern();
+            
+            // Add healing opportunity in combo attacks during rage mode - enhanced
+            if (boss.rageHealingBonus && Math.random() < 0.4) { // Increased from 0.3
+                setTimeout(() => createMercyHealingAttack(), 1500); // Reduced from 2200
             }
         }
 
-        // New healing attacks for rage mode
+        // NEW DYNAMIC GREEN HEALING ATTACKS
+        function createSpiralHealingAttack() {
+            // Creates a dynamic spiral of healing particles - REDUCED DELAYS
+            currentAttackSpan.textContent = t('attackNames')['spiralHealing'];
+            
+            for (let i = 0; i < 8; i++) {
+                setTimeout(() => {
+                    const angle = (i / 8) * Math.PI * 2;
+                    const radius = 80 + i * 15;
+                    const centerX = battleBox.x + battleBox.width / 2;
+                    const centerY = battleBox.y + battleBox.height / 2;
+                    
+                    attacks.push({
+                        type: 'spiralHealing',
+                        x: centerX + Math.cos(angle) * radius,
+                        y: centerY + Math.sin(angle) * radius,
+                        dx: -Math.cos(angle) * 2,
+                        dy: -Math.sin(angle) * 2,
+                        size: 12,
+                        color: '#00ff88',
+                        attackColor: 'green',
+                        healAmount: 4,
+                        trail: [],
+                        spiralSpeed: 0.08
+                    });
+                }, i * 100); // Reduced from 150
+            }
+        }
+
+        function createHealingWaveAttack() {
+            // Creates waves of healing that flow across the screen - REDUCED DELAYS
+            currentAttackSpan.textContent = t('attackNames')['healingWave'];
+            
+            for (let wave = 0; wave < 3; wave++) {
+                setTimeout(() => {
+                    for (let i = 0; i < 6; i++) {
+                        attacks.push({
+                            type: 'healingWave',
+                            x: battleBox.x - 20,
+                            y: battleBox.y + i * (battleBox.height / 5),
+                            dx: 3 + wave * 0.5,
+                            dy: Math.sin(i + wave) * 1.5,
+                            size: 10,
+                            color: '#44ff44',
+                            attackColor: 'green',
+                            healAmount: 3,
+                            waveOffset: i + wave * 3
+                        });
+                    }
+                }, wave * 500); // Reduced from 800
+            }
+        }
+
+        function createHealingBurstAttack() {
+            // Creates bursts of healing that expand outward
+            currentAttackSpan.textContent = t('attackNames')['healingBurst'];
+            
+            const burstCenters = [
+                { x: battleBox.x + battleBox.width * 0.3, y: battleBox.y + battleBox.height * 0.3 },
+                { x: battleBox.x + battleBox.width * 0.7, y: battleBox.y + battleBox.height * 0.7 }
+            ];
+            
+            burstCenters.forEach((center, burstIndex) => {
+                setTimeout(() => {
+                    for (let i = 0; i < 8; i++) {
+                        const angle = (i / 8) * Math.PI * 2;
+                        attacks.push({
+                            type: 'healingBurst',
+                            x: center.x,
+                            y: center.y,
+                            dx: Math.cos(angle) * 2.5,
+                            dy: Math.sin(angle) * 2.5,
+                            size: 8,
+                            color: '#66ff66',
+                            attackColor: 'green',
+                            healAmount: 2,
+                            expandTimer: 0
+                        });
+                    }
+                }, burstIndex * 600);
+            });
+        }
+
+        function createFlowingHealingAttack() {
+            // Creates flowing healing particles that follow curved paths
+            currentAttackSpan.textContent = t('attackNames')['flowingHealing'];
+            
+            for (let i = 0; i < 5; i++) {
+                setTimeout(() => {
+                    attacks.push({
+                        type: 'flowingHealing',
+                        x: battleBox.x + Math.random() * battleBox.width,
+                        y: battleBox.y - 20,
+                        dx: (Math.random() - 0.5) * 2,
+                        dy: 1.5,
+                        size: 12,
+                        color: '#88ff88',
+                        attackColor: 'green',
+                        healAmount: 4,
+                        flowPhase: Math.random() * Math.PI * 2,
+                        trail: []
+                    });
+                }, i * 300);
+            }
+        }
+
+        // Enhanced original healing attacks for rage mode
         function createMercyHealingAttack() {
-            // Creates a wave of healing particles - reduced to half
-            for (let i = 0; i < 3; i++) {
+            // Enhanced: Creates a more dynamic wave of healing particles
+            for (let i = 0; i < 4; i++) { // Increased from 3
                 attacks.push({
                     type: 'mercyHealing',
-                    x: battleBox.x + Math.random() * battleBox.width,
+                    x: battleBox.x + (i + 0.5) * (battleBox.width / 4),
                     y: battleBox.y - 10,
-                    dx: (Math.random() - 0.5) * 1.5,
-                    dy: 1 + Math.random() * 2,
+                    dx: (Math.random() - 0.5) * 1,
+                    dy: 1.5 + Math.random(),
                     size: 10,
-                    color: '#00ff00',
+                    color: '#22ff22',
                     attackColor: 'green',
                     healAmount: 3
                 });
@@ -2347,49 +2520,50 @@
         }
 
         function createEmergencyTreatsAttack() {
-            // Creates larger healing opportunities - reduced to half
-            for (let i = 0; i < 2; i++) {
-                const x = battleBox.x + (i + 0.5) * (battleBox.width / 2);
+            // Enhanced: Creates more healing opportunities with movement
+            for (let i = 0; i < 3; i++) { // Increased from 2
+                const x = battleBox.x + (i + 0.5) * (battleBox.width / 3);
                 attacks.push({
                     type: 'emergencyTreats',
                     x: x,
                     y: battleBox.y - 10,
-                    dx: 0,
-                    dy: 2,
+                    dx: (Math.random() - 0.5) * 1.5,
+                    dy: 1.8,
                     size: 15,
-                    color: '#00ff00',
+                    color: '#00ff44',
                     attackColor: 'green',
                     healAmount: 5,
-                    timer: 180
+                    timer: 200, // Increased lifetime
+                    pulse: 0
                 });
             }
         }
 
         // New special attacks for rage mode
         function createMegalovaniaAttack() {
-            // Special attack pattern inspired by Sans - FIXED PATTERNS
+            // Enhanced special attack pattern - MORE COMPLEX
             const patterns = [
-                // Bone wall from bottom - FIXED positions
+                // Bone wall from bottom - ENHANCED
                 () => {
-                    for (let i = 0; i < 8; i++) {
+                    for (let i = 0; i < 10; i++) { // Increased from 8
                         attacks.push({
                             type: 'megalovania',
-                            x: battleBox.x + 20 + i * 60,
+                            x: battleBox.x + 10 + i * 48,
                             y: battleBox.y + battleBox.height,
                             dx: 0,
-                            dy: -6,
+                            dy: -6 - Math.random() * 2, // Variable speed
                             size: 15,
                             color: '#87ceeb',
                             attackColor: 'blue',
-                            height: 60
+                            height: 60 + Math.random() * 20 // Variable height
                         });
                     }
                 },
-                // Circling bones - FIXED pattern
+                // Circling bones - ENHANCED with variable patterns
                 () => {
-                    for (let i = 0; i < 12; i++) {
-                        const angle = (i / 12) * Math.PI * 2;
-                        const radius = 150;
+                    for (let i = 0; i < 15; i++) { // Increased from 12
+                        const angle = (i / 15) * Math.PI * 2;
+                        const radius = 130 + Math.sin(i) * 30; // Variable radius
                         attacks.push({
                             type: 'megalovania',
                             x: battleBox.x + battleBox.width/2 + Math.cos(angle) * radius,
@@ -2399,48 +2573,95 @@
                             size: 12,
                             color: '#ffa500',
                             attackColor: 'orange',
-                            speed: 3
+                            speed: 2.5 + Math.random() * 1.5 // Variable speed
+                        });
+                    }
+                },
+                // NEW: Cross pattern
+                () => {
+                    for (let i = 0; i < 8; i++) {
+                        // Horizontal line
+                        attacks.push({
+                            type: 'megalovania',
+                            x: battleBox.x + i * 60,
+                            y: battleBox.y + battleBox.height/2,
+                            dx: 0,
+                            dy: i % 2 === 0 ? -4 : 4,
+                            size: 14,
+                            color: '#ff6b6b',
+                            attackColor: 'white'
+                        });
+                        // Vertical line
+                        attacks.push({
+                            type: 'megalovania',
+                            x: battleBox.x + battleBox.width/2,
+                            y: battleBox.y + i * 25,
+                            dx: i % 2 === 0 ? -4 : 4,
+                            dy: 0,
+                            size: 14,
+                            color: '#6b6bff',
+                            attackColor: 'white'
                         });
                     }
                 }
             ];
             
-            // Cycle through patterns instead of random
+            // Enhanced pattern cycling with more variety
             attackPatternCounters.megalovania = (attackPatternCounters.megalovania || 0) % patterns.length;
             patterns[attackPatternCounters.megalovania]();
             attackPatternCounters.megalovania++;
         }
 
         function createDeterminationAttack() {
-            // Attack that gets stronger the lower boss HP is - FIXED pattern from left and right
-            const intensity = 1 + (1 - boss.hp / boss.maxHP) * 2;
+            // Enhanced: More complex patterns with variable timing - REDUCED DELAYS
+            const intensity = 1 + (1 - boss.hp / boss.maxHP) * 2.5; // Increased multiplier
             
-            for (let i = 0; i < 5 * intensity; i++) {
+            for (let i = 0; i < 6 * intensity; i++) { // Increased base count
                 setTimeout(() => {
-                    const side = i % 2 === 0 ? 'left' : 'right'; // Alternate sides
-                    const startX = side === 'left' ? battleBox.x - 20 : battleBox.x + battleBox.width + 20;
-                    const yPos = battleBox.y + 20 + (i % 8) * 20; // Fixed Y positions
+                    const pattern = i % 3;
+                    let startX, startY, dx, dy;
+                    
+                    switch(pattern) {
+                        case 0: // From left
+                            startX = battleBox.x - 20;
+                            startY = battleBox.y + 20 + (i % 8) * 20;
+                            dx = 7 + Math.random() * 2;
+                            dy = (Math.random() - 0.5) * 1;
+                            break;
+                        case 1: // From right
+                            startX = battleBox.x + battleBox.width + 20;
+                            startY = battleBox.y + 20 + (i % 8) * 20;
+                            dx = -(7 + Math.random() * 2);
+                            dy = (Math.random() - 0.5) * 1;
+                            break;
+                        case 2: // From top
+                            startX = battleBox.x + 20 + (i % 10) * 46;
+                            startY = battleBox.y - 20;
+                            dx = (Math.random() - 0.5) * 1;
+                            dy = 6 + Math.random() * 2;
+                            break;
+                    }
                     
                     attacks.push({
                         type: 'determination',
                         x: startX,
-                        y: yPos,
-                        dx: side === 'left' ? 8 : -8,
-                        dy: 0,
+                        y: startY,
+                        dx: dx,
+                        dy: dy,
                         size: 8,
                         color: '#ff0000',
                         attackColor: 'white',
                         trail: []
                     });
-                }, i * 200);
+                }, i * 120); // Reduced from 180
             }
         }
         
-        // FIXED PATTERN ATTACK FUNCTIONS
+        // ENHANCED FIXED PATTERN ATTACK FUNCTIONS
         
         function createBlueBonesAttack() {
-            // Blue attacks hurt only when moving - FIXED spacing
-            const count = boss.phase >= 3 ? 6 : 4;
+            // Enhanced: Blue attacks with more variety
+            const count = boss.phase >= 3 ? 8 : 6; // Increased
             const spacing = battleBox.width / (count + 1);
             
             for (let i = 0; i < count; i++) {
@@ -2448,8 +2669,8 @@
                     type: 'blueBones',
                     x: battleBox.x + spacing * (i + 1),
                     y: battleBox.y - 20,
-                    dx: 0,
-                    dy: 3,
+                    dx: Math.sin(i) * 0.5, // Slight horizontal movement
+                    dy: 3 + Math.random() * 1, // Variable speed
                     size: 15,
                     color: '#87ceeb',
                     attackColor: 'blue'
@@ -2458,18 +2679,19 @@
         }
         
         function createOrangeZoomiesAttack() {
-            // Orange attacks hurt only when still - FIXED radial pattern
-            const count = boss.phase >= 3 ? 8 : 6;
+            // Enhanced: Orange attacks with more complex patterns
+            const count = boss.phase >= 3 ? 10 : 8; // Increased
             const angleStep = (Math.PI * 2) / count;
             
             for (let i = 0; i < count; i++) {
                 const angle = i * angleStep;
+                const speed = 3.5 + Math.random() * 1.5; // Variable speed
                 attacks.push({
                     type: 'orangeZoomies',
                     x: battleBox.x + battleBox.width/2,
                     y: battleBox.y + battleBox.height/2,
-                    dx: Math.cos(angle) * 4,
-                    dy: Math.sin(angle) * 4,
+                    dx: Math.cos(angle) * speed,
+                    dy: Math.sin(angle) * speed,
                     size: 12,
                     color: '#ffa500',
                     attackColor: 'orange',
@@ -2479,17 +2701,17 @@
         }
         
         function createHealingTreatsAttack() {
-            // Green attacks heal when touched - FIXED positions
-            const count = boss.rageHealingBonus ? 3 : 2;
-            const spacing = battleBox.width / (count + 1);
+            // Enhanced: More dynamic healing positions
+            const count = boss.rageHealingBonus ? 4 : 3; // Increased
             
             for (let i = 0; i < count; i++) {
+                const x = battleBox.x + Math.random() * battleBox.width;
                 attacks.push({
                     type: 'healingTreats',
-                    x: battleBox.x + spacing * (i + 1),
+                    x: x,
                     y: battleBox.y - 10,
-                    dx: 0,
-                    dy: 2,
+                    dx: (Math.random() - 0.5) * 1, // Slight horizontal movement
+                    dy: 1.5 + Math.random() * 0.5,
                     size: 8,
                     color: '#00ff00',
                     attackColor: 'green',
@@ -2499,14 +2721,17 @@
         }
         
         function createEnragedSwipeAttack() {
-            // Multiple rapid swipes when boss is enraged - FIXED positions
+            // Enhanced: More complex swipe patterns - REDUCED DELAYS
             const positions = [
-                { x: battleBox.x + battleBox.width * 0.25, y: battleBox.y + battleBox.height * 0.25 },
-                { x: battleBox.x + battleBox.width * 0.75, y: battleBox.y + battleBox.height * 0.75 },
-                { x: battleBox.x + battleBox.width * 0.5, y: battleBox.y + battleBox.height * 0.5 }
+                { x: battleBox.x + battleBox.width * 0.2, y: battleBox.y + battleBox.height * 0.2 },
+                { x: battleBox.x + battleBox.width * 0.8, y: battleBox.y + battleBox.height * 0.8 },
+                { x: battleBox.x + battleBox.width * 0.5, y: battleBox.y + battleBox.height * 0.5 },
+                { x: battleBox.x + battleBox.width * 0.8, y: battleBox.y + battleBox.height * 0.2 },
+                { x: battleBox.x + battleBox.width * 0.2, y: battleBox.y + battleBox.height * 0.8 }
             ];
             
-            for (let i = 0; i < 3; i++) {
+            const count = Math.min(boss.phase, 4); // More swipes at higher phases
+            for (let i = 0; i < count; i++) {
                 setTimeout(() => {
                     const pos = positions[i];
                     
@@ -2514,64 +2739,107 @@
                         type: 'warning',
                         x: pos.x,
                         y: pos.y,
-                        timer: 40,
-                        size: 50,
+                        timer: 35, // Reduced from 45
+                        size: 55,
                         color: '#ff0000'
                     });
                     
                     setTimeout(() => {
                         attacks.push({
                             type: 'enragedSwipe',
-                            x: pos.x - 35,
-                            y: pos.y - 35,
-                            size: 70,
-                            timer: 30,
+                            x: pos.x - 40,
+                            y: pos.y - 40,
+                            size: 80, // Larger swipes
+                            timer: 35,
                             color: '#ff4500'
                         });
-                    }, 650);
-                }, i * 500);
+                    }, 580); // Reduced from 750
+                }, i * 300); // Reduced from 400
             }
         }
         
-        // Enhanced original attack functions with FIXED patterns
+        // Enhanced original attack functions with MORE complexity
         function createYarnBallAttack() {
-            const count = boss.phase >= 3 ? 6 : 4;
+            const count = boss.phase >= 3 ? 8 : 6; // Increased
             const spacing = battleBox.width / count;
             
-            // Use pattern counter for consistent bouncing
-            attackPatternCounters.yarnball = (attackPatternCounters.yarnball + 1) % 2;
-            const direction = attackPatternCounters.yarnball === 0 ? 1 : -1;
+            // Enhanced pattern counter for more variety
+            attackPatternCounters.yarnball = (attackPatternCounters.yarnball + 1) % 3; // Increased patterns
+            const pattern = attackPatternCounters.yarnball;
             
             for (let i = 0; i < count; i++) {
+                let dx, dy;
+                switch(pattern) {
+                    case 0: // Left-right bounce
+                        dx = 1 + i * 0.3;
+                        dy = 2;
+                        break;
+                    case 1: // Right-left bounce
+                        dx = -(1 + i * 0.3);
+                        dy = 2;
+                        break;
+                    case 2: // Zigzag pattern
+                        dx = (i % 2 === 0 ? 1 : -1) * (1.5 + i * 0.2);
+                        dy = 2.5;
+                        break;
+                }
+                
                 attacks.push({
                     type: 'yarnball',
                     x: battleBox.x + spacing * i + spacing / 2,
                     y: battleBox.y - 20,
-                    dx: direction * (1 + i * 0.5),
-                    dy: 2,
+                    dx: dx,
+                    dy: dy,
                     size: 12,
                     color: '#ff69b4',
-                    bounces: boss.phase >= 4 ? 3 : 2,
+                    bounces: boss.phase >= 4 ? 4 : 3, // More bounces
                     attackColor: 'white'
                 });
             }
         }
         
         function createFishBoneAttack() {
-            // FIXED pattern - alternates sides
-            attackPatternCounters.fishbone = (attackPatternCounters.fishbone + 1) % 2;
-            const side = attackPatternCounters.fishbone === 0 ? 'left' : 'right';
-            const startX = side === 'left' ? battleBox.x - 20 : battleBox.x + battleBox.width + 20;
-            const count = boss.phase >= 3 ? 8 : 6;
-            const spacing = battleBox.height / count;
+            // Enhanced: More complex side patterns
+            attackPatternCounters.fishbone = (attackPatternCounters.fishbone + 1) % 3; // More patterns
+            const pattern = attackPatternCounters.fishbone;
+            const count = boss.phase >= 3 ? 10 : 8; // Increased
+            
+            let startX, dx, spacing;
+            switch(pattern) {
+                case 0: // From left
+                    startX = battleBox.x - 20;
+                    dx = 5 + boss.phase;
+                    spacing = battleBox.height / count;
+                    break;
+                case 1: // From right
+                    startX = battleBox.x + battleBox.width + 20;
+                    dx = -(5 + boss.phase);
+                    spacing = battleBox.height / count;
+                    break;
+                case 2: // Both sides alternating
+                    for (let i = 0; i < count; i++) {
+                        const side = i % 2;
+                        attacks.push({
+                            type: 'fishbone',
+                            x: side === 0 ? battleBox.x - 20 : battleBox.x + battleBox.width + 20,
+                            y: battleBox.y + (i * battleBox.height / count),
+                            dx: side === 0 ? (5 + boss.phase) : -(5 + boss.phase),
+                            dy: (Math.random() - 0.5) * 1, // Slight vertical movement
+                            size: 10,
+                            color: '#ffd700',
+                            attackColor: 'white'
+                        });
+                    }
+                    return; // Early return for pattern 2
+            }
             
             for (let i = 0; i < count; i++) {
                 attacks.push({
                     type: 'fishbone',
                     x: startX,
                     y: battleBox.y + spacing * i,
-                    dx: side === 'left' ? (4 + boss.phase) : -(4 + boss.phase),
-                    dy: 0,
+                    dx: dx,
+                    dy: (Math.random() - 0.5) * 0.5, // Slight vertical variance
                     size: 10,
                     color: '#ffd700',
                     attackColor: 'white'
@@ -2580,54 +2848,66 @@
         }
         
         function createPawSwipeAttack() {
-            // Target player position but with warning - this can remain targeting
-            const targetX = player.x;
-            const targetY = player.y;
+            // Enhanced: Multiple target positions with better warning - REDUCED DELAY
+            const targetCount = boss.phase >= 4 ? 2 : 1;
             
-            particles.push({
-                type: 'warning',
-                x: targetX,
-                y: targetY,
-                timer: 80,
-                size: 40,
-                color: '#ff0000'
-            });
-            
-            setTimeout(() => {
-                attacks.push({
-                    type: 'pawswipe',
-                    x: targetX - 30,
-                    y: targetY - 30,
-                    size: 60,
-                    timer: 40,
-                    color: '#8b4513',
-                    attackColor: 'white'
-                });
-            }, 1300);
+            for (let i = 0; i < targetCount; i++) {
+                setTimeout(() => {
+                    const targetX = player.x + (Math.random() - 0.5) * 60; // Less precise targeting
+                    const targetY = player.y + (Math.random() - 0.5) * 60;
+                    
+                    particles.push({
+                        type: 'warning',
+                        x: targetX,
+                        y: targetY,
+                        timer: 60, // Reduced from 90
+                        size: 45,
+                        color: '#ff0000'
+                    });
+                    
+                    setTimeout(() => {
+                        attacks.push({
+                            type: 'pawswipe',
+                            x: targetX - 35,
+                            y: targetY - 35,
+                            size: 70,
+                            timer: 45,
+                            color: '#8b4513',
+                            attackColor: 'white'
+                        });
+                    }, 1000); // Reduced from 1500
+                }, i * 600); // Reduced from 800
+            }
         }
         
         function createLaserPointerAttack() {
-            // This targets player - keep as targeting attack
-            const angle = Math.atan2(player.y - (battleBox.y + battleBox.height/2), 
-                                   player.x - (battleBox.x + battleBox.width/2));
+            // Enhanced: Multiple lasers with different speeds - REDUCED DELAYS
+            const laserCount = boss.phase >= 3 ? 3 : 2;
             
-            attacks.push({
-                type: 'laser',
-                x: battleBox.x + battleBox.width/2,
-                y: battleBox.y + battleBox.height/2,
-                dx: Math.cos(angle) * (5 + boss.phase),
-                dy: Math.sin(angle) * (5 + boss.phase),
-                size: 8,
-                color: '#ff0000',
-                trail: [],
-                attackColor: 'white'
-            });
+            for (let i = 0; i < laserCount; i++) {
+                setTimeout(() => {
+                    const angle = Math.atan2(player.y - (battleBox.y + battleBox.height/2), 
+                                           player.x - (battleBox.x + battleBox.width/2)) + (Math.random() - 0.5) * 0.5;
+                    
+                    attacks.push({
+                        type: 'laser',
+                        x: battleBox.x + battleBox.width/2,
+                        y: battleBox.y + battleBox.height/2,
+                        dx: Math.cos(angle) * (4 + boss.phase + i),
+                        dy: Math.sin(angle) * (4 + boss.phase + i),
+                        size: 8,
+                        color: ['#ff0000', '#ff4500', '#ff6600'][i] || '#ff0000',
+                        trail: [],
+                        attackColor: 'white'
+                    });
+                }, i * 250); // Reduced from 400
+            }
         }
         
         function createCatnipCloudAttack() {
-            // FIXED grid pattern
-            const rows = 4;
-            const cols = 5;
+            // Enhanced: More dynamic grid with movement
+            const rows = 5;
+            const cols = 6;
             const spacingX = battleBox.width / (cols + 1);
             const spacingY = battleBox.height / (rows + 1);
             
@@ -2637,11 +2917,11 @@
                         type: 'catnip',
                         x: battleBox.x + spacingX * (col + 1),
                         y: battleBox.y + spacingY * (row + 1),
-                        dx: 0,
-                        dy: 0,
+                        dx: (Math.random() - 0.5) * 0.5, // Slight movement
+                        dy: (Math.random() - 0.5) * 0.5,
                         size: 6,
                         color: '#90EE90',
-                        timer: 180,
+                        timer: 200, // Longer lifetime
                         attackColor: 'white'
                     });
                 }
@@ -2649,9 +2929,10 @@
         }
         
         function createZoomiesAttack() {
-            // FIXED radial pattern
-            const count = boss.phase >= 3 ? 10 : 8;
+            // Enhanced: More complex radial patterns
+            const count = boss.phase >= 3 ? 12 : 10;
             const angleStep = (Math.PI * 2) / count;
+            const speed = 5 + boss.phase * 0.5;
             
             for (let i = 0; i < count; i++) {
                 const angle = i * angleStep;
@@ -2659,98 +2940,118 @@
                     type: 'zoomies',
                     x: battleBox.x + battleBox.width/2,
                     y: battleBox.y + battleBox.height/2,
-                    dx: Math.cos(angle) * 6,
-                    dy: Math.sin(angle) * 6,
+                    dx: Math.cos(angle) * speed,
+                    dy: Math.sin(angle) * speed,
                     size: 15,
                     color: '#FFB6C1',
                     trail: [],
-                    attackColor: 'white'
+                    attackColor: 'white',
+                    spiralFactor: 0.02 // Add spiral movement
                 });
             }
         }
         
         function createMouseToyAttack() {
-            // FIXED positions but can target player
+            // Enhanced: More complex targeting with prediction
             const fixedPositions = [
                 { x: battleBox.x + 50, y: battleBox.y + 50 },
                 { x: battleBox.x + battleBox.width - 50, y: battleBox.y + 50 },
                 { x: battleBox.x + 50, y: battleBox.y + battleBox.height - 50 },
-                { x: battleBox.x + battleBox.width - 50, y: battleBox.y + battleBox.height - 50 }
+                { x: battleBox.x + battleBox.width - 50, y: battleBox.y + battleBox.height - 50 },
+                { x: battleBox.x + battleBox.width/2, y: battleBox.y + 30 }
             ];
             
-            const count = boss.phase >= 4 ? 4 : 3;
+            const count = boss.phase >= 4 ? 5 : 4;
             for (let i = 0; i < count; i++) {
                 const startPos = fixedPositions[i % fixedPositions.length];
+                // Predict player movement slightly
+                const predictedX = player.x + (keys['arrowright'] || keys['d'] ? 30 : 0) - (keys['arrowleft'] || keys['a'] ? 30 : 0);
+                const predictedY = player.y + (keys['arrowdown'] || keys['s'] ? 30 : 0) - (keys['arrowup'] || keys['w'] ? 30 : 0);
+                
                 attacks.push({
                     type: 'mouse',
                     x: startPos.x,
                     y: startPos.y,
-                    targetX: player.x,
-                    targetY: player.y,
+                    targetX: predictedX,
+                    targetY: predictedY,
                     size: 8,   
                     color: '#8B4513',
-                    speed: 2 + boss.phase * 0.5,
+                    speed: 2.5 + boss.phase * 0.3,
                     attackColor: 'white'
                 });
             }
         }
         
         function createTreatShowerAttack() {
-            // FIXED grid pattern
-            const count = boss.phase >= 3 ? 15 : 12;
-            const cols = 5;
-            const rows = Math.ceil(count / cols);
-            const spacingX = battleBox.width / cols;
-            const healingTreats = boss.mood === 'friendly' || (boss.rageHealingBonus && Math.random() < 0.125);
+            // Enhanced: More dynamic shower patterns - REDUCED DELAYS
+            const count = boss.phase >= 3 ? 18 : 15;
+            const healingTreats = boss.mood === 'friendly' || (boss.rageHealingBonus && Math.random() < 0.15);
             
             for (let i = 0; i < count; i++) {
-                const col = i % cols;
-                const row = Math.floor(i / cols);
+                const x = battleBox.x + Math.random() * battleBox.width;
+                const delay = Math.random() * 600; // Reduced from 1000
                 
-                attacks.push({
-                    type: healingTreats ? 'healingTreats' : 'treats',
-                    x: battleBox.x + spacingX * col + spacingX / 2,
-                    y: battleBox.y - 10 - row * 30,
-                    dx: 0,
-                    dy: 1 + row * 0.5,
-                    size: 5,
-                    color: healingTreats ? '#00ff00' : '#D2691E',
-                    attackColor: healingTreats ? 'green' : 'white',
-                    healAmount: healingTreats ? (boss.rageHealingBonus ? 3 : 2) : 0
-                });
+                setTimeout(() => {
+                    attacks.push({
+                        type: healingTreats ? 'healingTreats' : 'treats',
+                        x: x,
+                        y: battleBox.y - 20 - Math.random() * 50,
+                        dx: (Math.random() - 0.5) * 1,
+                        dy: 1.5 + Math.random() * 1.5,
+                        size: 5,
+                        color: healingTreats ? '#00ff00' : '#D2691E',
+                        attackColor: healingTreats ? 'green' : 'white',
+                        healAmount: healingTreats ? (boss.rageHealingBonus ? 3 : 2) : 0
+                    });
+                }, delay);
             }
         }
         
         function createCardboardBoxAttack() {
-            // FIXED position in center
-            const boxX = battleBox.x + battleBox.width/2 - 30;
-            const boxY = battleBox.y + battleBox.height/2 - 30;
+            // Enhanced: Multiple boxes with different timings
+            const boxCount = boss.phase >= 4 ? 2 : 1;
+            const positions = [
+                { x: battleBox.x + battleBox.width/2 - 30, y: battleBox.y + battleBox.height/2 - 30 },
+                { x: battleBox.x + battleBox.width/4 - 20, y: battleBox.y + battleBox.height/4 - 20 }
+            ];
             
-            attacks.push({
-                type: 'cardboard',
-                x: boxX,
-                y: boxY,
-                size: 60,
-                color: '#DEB887',
-                timer: 120 + boss.phase * 20,
-                phase: 0,
-                attackColor: 'white'
-            });
+            for (let i = 0; i < boxCount; i++) {
+                const pos = positions[i];
+                attacks.push({
+                    type: 'cardboard',
+                    x: pos.x,
+                    y: pos.y,
+                    size: 60,
+                    color: '#DEB887',
+                    timer: 150 + boss.phase * 15,
+                    phase: 0,
+                    attackColor: 'white'
+                });
+            }
         }
         
         function createStringAttack() {
-            // FIXED wave pattern
+            // Enhanced: More complex wave patterns
             const startX = battleBox.x;
             const startY = battleBox.y + battleBox.height/2;
-            const count = boss.phase >= 4 ? 12 : 10;
+            const count = boss.phase >= 4 ? 15 : 12;
+            const waveVariations = 3;
             
             for (let i = 0; i < count; i++) {
+                const waveType = i % waveVariations;
+                let dy;
+                switch(waveType) {
+                    case 0: dy = Math.sin(i * 0.5) * 2; break;
+                    case 1: dy = Math.cos(i * 0.3) * 2.5; break;
+                    case 2: dy = Math.sin(i * 0.8) * 1.5; break;
+                }
+                
                 attacks.push({
                     type: 'string',
-                    x: startX - i * 15,
+                    x: startX - i * 18,
                     y: startY,
-                    dx: 2 + boss.phase * 0.5,
-                    dy: Math.sin(i * 0.5) * 2,
+                    dx: 2.5 + boss.phase * 0.3,
+                    dy: dy,
                     size: 4,
                     color: '#FF1493',
                     waveOffset: i * 0.5,
@@ -2760,38 +3061,48 @@
         }
         
         function createHairballAttack() {
-            // FIXED center position
-            particles.push({
-                type: 'warning',
-                x: battleBox.x + battleBox.width/2,
-                y: battleBox.y + 50,
-                timer: 60,
-                size: 50,
-                color: '#ff0000'
-            });
+            // Enhanced: Multiple hairballs with better targeting - REDUCED DELAY
+            const hairballCount = boss.phase >= 4 ? 3 : 2;
+            const positions = [
+                { x: battleBox.x + battleBox.width/2, y: battleBox.y + 50 },
+                { x: battleBox.x + battleBox.width/4, y: battleBox.y + 40 },
+                { x: battleBox.x + 3*battleBox.width/4, y: battleBox.y + 60 }
+            ];
             
-            setTimeout(() => {
-                attacks.push({
-                    type: 'hairball',
-                    x: battleBox.x + battleBox.width/2,
-                    y: battleBox.y,
-                    dx: 0,
-                    dy: 3 + boss.phase,
-                    size: 25,
-                    color: '#8B4513',
-                    attackColor: 'white'
+            for (let i = 0; i < hairballCount; i++) {
+                const pos = positions[i];
+                particles.push({
+                    type: 'warning',
+                    x: pos.x,
+                    y: pos.y,
+                    timer: 50, // Reduced from 70
+                    size: 55,
+                    color: '#ff0000'
                 });
-            }, 1000);
+                
+                setTimeout(() => {
+                    attacks.push({
+                        type: 'hairball',
+                        x: pos.x,
+                        y: battleBox.y,
+                        dx: (Math.random() - 0.5) * 1,
+                        dy: 3.5 + boss.phase,
+                        size: 25,
+                        color: '#8B4513',
+                        attackColor: 'white'
+                    });
+                }, 800); // Reduced from 1200
+            }
         }
         
         function createNapAttack() {
-            player.statusEffects.sleepy = 120;
+            player.statusEffects.sleepy = 150; // Longer effect
             currentAttackSpan.textContent = t('attackNames')['nap'] + t('feelSleepy');
         }
         
         function createScratchingPostAttack() {
-            // FIXED vertical lines
-            const count = boss.phase >= 4 ? 6 : 5;
+            // Enhanced: More complex vertical patterns
+            const count = boss.phase >= 4 ? 8 : 6;
             const spacing = battleBox.width / (count + 1);
             
             for (let i = 0; i < count; i++) {
@@ -2799,8 +3110,8 @@
                     type: 'scratching',
                     x: battleBox.x + spacing * (i + 1),
                     y: battleBox.y,
-                    dx: 0,
-                    dy: 4 + boss.phase,
+                    dx: (Math.random() - 0.5) * 0.5, // Slight horizontal drift
+                    dy: 4.5 + boss.phase,
                     size: 8,
                     color: '#8B4513',
                     length: battleBox.height,
@@ -2810,23 +3121,24 @@
         }
         
         function createHidingAttack() {
-            // FIXED positions for shadows
+            // Enhanced: More hiding spots with different sizes
             const fixedShadows = [
-                { x: battleBox.x + 50, y: battleBox.y + battleBox.height - 40 },
-                { x: battleBox.x + battleBox.width - 130, y: battleBox.y + battleBox.height - 40 },
-                { x: battleBox.x + battleBox.width/2 - 40, y: battleBox.y + 50 }
+                { x: battleBox.x + 40, y: battleBox.y + battleBox.height - 35, size: 90 },
+                { x: battleBox.x + battleBox.width - 140, y: battleBox.y + battleBox.height - 45, size: 100 },
+                { x: battleBox.x + battleBox.width/2 - 35, y: battleBox.y + 40, size: 70 },
+                { x: battleBox.x + battleBox.width/4, y: battleBox.y + battleBox.height/2, size: 80 }
             ];
             
-            const count = boss.phase >= 4 ? 3 : 2;
+            const count = boss.phase >= 4 ? 4 : 3;
             for (let i = 0; i < count; i++) {
                 const pos = fixedShadows[i];
                 attacks.push({
                     type: 'hiding',
                     x: pos.x,
                     y: pos.y,
-                    size: 80,
+                    size: pos.size,
                     color: '#333333',
-                    timer: 150 + boss.phase * 10,
+                    timer: 180 + boss.phase * 15,
                     phase: 0,
                     attackColor: 'white'
                 });
@@ -2834,103 +3146,101 @@
         }
         
         function createLitterBoxAttack() {
-            // FIXED corner positions
+            // Enhanced: More litter boxes with staggered appearance - REDUCED DELAYS
             const corners = [
                 {x: battleBox.x, y: battleBox.y},
-                {x: battleBox.x + battleBox.width - 40, y: battleBox.y},
-                {x: battleBox.x, y: battleBox.y + battleBox.height - 40},
-                {x: battleBox.x + battleBox.width - 40, y: battleBox.y + battleBox.height - 40}
+                {x: battleBox.x + battleBox.width - 45, y: battleBox.y},
+                {x: battleBox.x, y: battleBox.y + battleBox.height - 45},
+                {x: battleBox.x + battleBox.width - 45, y: battleBox.y + battleBox.height - 45},
+                {x: battleBox.x + battleBox.width/2 - 20, y: battleBox.y + battleBox.height/2 - 20}
             ];
             
-            corners.forEach(corner => {
-                attacks.push({
-                    type: 'litter',
-                    x: corner.x,
-                    y: corner.y,
-                    size: 40,
-                    color: '#D2B48C',
-                    timer: 200,
-                    attackColor: 'white'
-                });
+            const count = boss.phase >= 5 ? 5 : 4;
+            corners.slice(0, count).forEach((corner, index) => {
+                setTimeout(() => {
+                    attacks.push({
+                        type: 'litter',
+                        x: corner.x,
+                        y: corner.y,
+                        size: 40,
+                        color: '#D2B48C',
+                        timer: 250,
+                        attackColor: 'white'
+                    });
+                }, index * 150); // Reduced from 300
             });
         }
         
-        // Game loop with delta time
-        function gameLoop(currentTime) {
-            if (!lastTime) lastTime = currentTime;
-            const deltaTime = currentTime - lastTime;
+        // Simplified game loop without complex delta time but with better clearing
+        function gameLoop() {
+            frameCount++;
             
-            // Only update if enough time has passed (frame limiting)
-            if (deltaTime >= frameTime) {
-                const delta = deltaTime / frameTime; // Scale factor for consistent speed
+            // Force clear canvas every frame to prevent leftovers
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            if (gameState === 'attack') {
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 3;
+                ctx.strokeRect(battleBox.x, battleBox.y, battleBox.width, battleBox.height);
+            }
+            
+            drawCatBoss();
+            
+            if (gameState === 'attack') {
+                updateStatusEffects();
+                updatePlayer();
                 
-                // Clear and redraw canvas
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                ctx.fillStyle = '#000';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                
-                if (gameState === 'attack') {
-                    ctx.strokeStyle = '#fff';
-                    ctx.lineWidth = 3;
-                    ctx.strokeRect(battleBox.x, battleBox.y, battleBox.width, battleBox.height);
+                // Update invincibility timer
+                if (player.invincibilityTimer > 0) {
+                    player.invincibilityTimer--;
                 }
                 
-                drawCatBoss();
+                attackPhaseTimer++;
+                attackTimer++;
                 
-                if (gameState === 'attack') {
-                    updateStatusEffects();
-                    updatePlayer(delta);
-                    
-                    // Update invincibility timer
-                    if (player.invincibilityTimer > 0) {
-                        player.invincibilityTimer -= delta;
-                    }
-                    
-                    attackPhaseTimer += delta;
-                    attackTimer += delta;
-                    
-                    // Generate attacks based on boss phase and health
-                    const attackFrequency = Math.max(20, 80 - boss.phase * 10 - (boss.enragedMode ? 20 : 0));
-                    if (attackTimer % attackFrequency < delta) {
-                        generateRandomAttack();
-                    }
-                    
-                    updateAttacks(delta);
-                    updateParticles(delta);
-                    drawPlayer();
-                    checkCollisions();
-                    
-                    // Check for player death immediately
-                    if (player.hp <= 0 && gameState === 'attack') {
-                        handlePlayerDeath();
-                        return;
-                    }
+                // Generate attacks based on boss phase and health - Slower timing
+                const baseFrequency = Math.max(45, 140 - boss.phase * 10 - (boss.enragedMode ? 20 : 0));
+                const variableFrequency = baseFrequency + Math.sin(frameCount * 0.08) * 15; // Add some variance
+                
+                if (frameCount % Math.floor(variableFrequency) === 0) {
+                    generateRandomAttack();
                 }
-                else if (gameState === 'menu' || gameState === 'dialogue' || gameState === 'cutscene' || gameState === 'item_destruction_cutscene') {
-                    // Still draw player during menu/dialogue states
-                    drawPlayer();
-                    updateParticles(delta);
+                
+                updateAttacks();
+                updateParticles();
+                drawPlayer();
+                checkCollisions();
+                
+                // Check for player death immediately
+                if (player.hp <= 0 && gameState === 'attack') {
+                    handlePlayerDeath();
+                    return;
                 }
+            }
+            else if (gameState === 'menu' || gameState === 'dialogue' || gameState === 'cutscene' || gameState === 'item_destruction_cutscene') {
+                // Still draw player during menu/dialogue states
+                drawPlayer();
+                updateParticles();
+            }
 
-                if (gameState === 'death_animation') {
-                    updateDeathAnimation(delta);
-                }
+            if (gameState === 'death_animation') {
+                updateDeathAnimation();
+            }
 
-                if (gameState === 'player_death') {
-                    updatePlayerDeathAnimation(delta);
-                }
-                
-                lastTime = currentTime;
+            if (gameState === 'player_death') {
+                updatePlayerDeathAnimation();
             }
             
             gameLoopId = requestAnimationFrame(gameLoop);
         }
 
-        function updatePlayerDeathAnimation(delta) {
-            playerDeathTimer += delta;
+        function updatePlayerDeathAnimation() {
+            playerDeathTimer++;
             
-            // Create death effects around player
-            if (playerDeathTimer % 15 < delta) {
+            // Create death effects around player - reduced frequency
+            if (frameCount % 15 === 0) {
                 particles.push({
                     type: 'playerDeath',
                     x: player.x + (Math.random() - 0.5) * 40,
@@ -2944,8 +3254,8 @@
             for (let i = particles.length - 1; i >= 0; i--) {
                 const particle = particles[i];
                 if (particle.type === 'playerDeath') {
-                    particle.timer -= delta;
-                    particle.y -= 2 * delta;
+                    particle.timer--;
+                    particle.y -= 2;
                     
                     if (particle.timer <= 0) {
                         particles.splice(i, 1);
@@ -2968,13 +3278,13 @@
             ctx.globalAlpha = 1;
         }
 
-        function updateDeathAnimation(delta) {
-            boss.deathTimer += delta;
+        function updateDeathAnimation() {
+            boss.deathTimer++;
             
             boss.opacity = Math.max(0, 1 - boss.deathTimer / 180);
             boss.scale = Math.max(0.3, 1 - boss.deathTimer / 300);
             
-            if (boss.deathTimer % 10 < delta) {
+            if (frameCount % 10 === 0) {
                 boss.deathEffects.push({
                     x: canvas.width / 2 + (Math.random() - 0.5) * 100,
                     y: 100 + (Math.random() - 0.5) * 100,
@@ -2985,8 +3295,8 @@
             
             for (let i = boss.deathEffects.length - 1; i >= 0; i--) {
                 const effect = boss.deathEffects[i];
-                effect.timer -= delta;
-                effect.y -= 2 * delta;
+                effect.timer--;
+                effect.y -= 2;
                 
                 if (effect.timer <= 0) {
                     boss.deathEffects.splice(i, 1);
@@ -3017,7 +3327,7 @@
         function drawCatBoss() {
             const centerX = canvas.width / 2;
             const centerY = 100;
-            const bodyOffset = Math.sin(Date.now() * 0.003) * 2;
+            const bodyOffset = Math.sin(frameCount * 0.05) * 2;
             
             ctx.globalAlpha = boss.opacity;
             ctx.save();
@@ -3082,8 +3392,8 @@
             
             // Cat tail
             ctx.fillStyle = bodyColor;
-            const tailSway = Math.sin(Date.now() * (boss.enragedMode ? 0.02 : 0.01)) * (boss.enragedMode ? 25 : 15);
-            const tailHeight = Math.sin(Date.now() * 0.005) * 5;
+            const tailSway = Math.sin(frameCount * (boss.enragedMode ? 0.3 : 0.15)) * (boss.enragedMode ? 25 : 15);
+            const tailHeight = Math.sin(frameCount * 0.08) * 5;
             ctx.fillRect(centerX + 40, centerY + 20 + bodyOffset + tailHeight, 30 + tailSway, 8);
             
             // Mood indicators
@@ -3123,7 +3433,7 @@
             ctx.globalAlpha = 1;
         }
         
-        function updatePlayer(delta) {
+        function updatePlayer() {
             // Don't update player during end states
             if (gameState === 'win' || gameState === 'gameover' || gameState === 'player_death' || gameState === 'death_animation') {
                 return;
@@ -3133,13 +3443,13 @@
             player.isMoving = (player.x !== player.lastPosition.x || player.y !== player.lastPosition.y);
             player.lastPosition = { x: player.x, y: player.y };
             
-            let speed = 3 * delta;
+            let speed = 3;
             
             if (player.statusEffects.catnip > 0) {
-                speed = 1.5 * delta;
+                speed = 1.5;
             }
             if (player.statusEffects.sleepy > 0) {
-                speed = 2 * delta;
+                speed = 2;
             }
             
             let moveX = 0, moveY = 0;
@@ -3168,7 +3478,7 @@
         function drawPlayer() {
             let heartColor = '#ff0000';
             if (player.statusEffects.catnip > 0) {
-                heartColor = `hsl(${Date.now() * 0.1 % 360}, 100%, 50%)`;
+                heartColor = `hsl(${frameCount % 360}, 100%, 50%)`;
             }
             if (player.statusEffects.sleepy > 0) {
                 heartColor = '#ffaaaa';
@@ -3203,14 +3513,14 @@
             }
         }
         
-        function updateAttacks(delta) {
+        function updateAttacks() {
             for (let i = attacks.length - 1; i >= 0; i--) {
                 const attack = attacks[i];
                 
                 switch(attack.type) {
                     case 'yarnball':
-                        attack.x += attack.dx * delta;
-                        attack.y += attack.dy * delta;
+                        attack.x += attack.dx;
+                        attack.y += attack.dy;
                         if (attack.x <= battleBox.x || attack.x >= battleBox.x + battleBox.width) {
                             attack.dx *= -1;
                             attack.bounces--;
@@ -3223,24 +3533,24 @@
                         
                     case 'mouse':
                         const angle = Math.atan2(attack.targetY - attack.y, attack.targetX - attack.x);
-                        attack.x += Math.cos(angle) * attack.speed * delta;
-                        attack.y += Math.sin(angle) * attack.speed * delta;
+                        attack.x += Math.cos(angle) * attack.speed;
+                        attack.y += Math.sin(angle) * attack.speed;
                         break;
 
                     case 'megalovania':
                         if (attack.targetX !== undefined) {
                             const angle = Math.atan2(attack.targetY - attack.y, attack.targetX - attack.x);
-                            attack.x += Math.cos(angle) * attack.speed * delta;
-                            attack.y += Math.sin(angle) * attack.speed * delta;
+                            attack.x += Math.cos(angle) * attack.speed;
+                            attack.y += Math.sin(angle) * attack.speed;
                         } else {
-                            attack.x += (attack.dx || 0) * delta;
-                            attack.y += (attack.dy || 0) * delta;
+                            attack.x += (attack.dx || 0);
+                            attack.y += (attack.dy || 0);
                         }
                         break;
 
                     case 'determination':
-                        attack.x += attack.dx * delta;
-                        attack.y += attack.dy * delta;
+                        attack.x += attack.dx;
+                        attack.y += attack.dy;
                         if (attack.trail) {
                             attack.trail.push({x: attack.x, y: attack.y});
                             if (attack.trail.length > 5) {
@@ -3249,28 +3559,79 @@
                         }
                         break;
 
+                    case 'spiralHealing':
+                        attack.x += attack.dx;
+                        attack.y += attack.dy;
+                        // Add spiral movement
+                        if (attack.spiralSpeed) {
+                            const spiralAngle = frameCount * attack.spiralSpeed;
+                            attack.dx += Math.cos(spiralAngle) * 0.1;
+                            attack.dy += Math.sin(spiralAngle) * 0.1;
+                        }
+                        if (attack.trail) {
+                            attack.trail.push({x: attack.x, y: attack.y});
+                            if (attack.trail.length > 6) {
+                                attack.trail.shift();
+                            }
+                        }
+                        break;
+
+                    case 'healingWave':
+                        attack.x += attack.dx;
+                        attack.y += attack.dy + Math.sin(frameCount * 0.1 + attack.waveOffset) * 1.5;
+                        break;
+
+                    case 'healingBurst':
+                        attack.x += attack.dx;
+                        attack.y += attack.dy;
+                        if (attack.expandTimer !== undefined) {
+                            attack.expandTimer++;
+                            attack.size = Math.min(15, 8 + attack.expandTimer * 0.1);
+                        }
+                        break;
+
+                    case 'flowingHealing':
+                        attack.x += attack.dx + Math.sin(frameCount * 0.08 + attack.flowPhase) * 2;
+                        attack.y += attack.dy;
+                        if (attack.trail) {
+                            attack.trail.push({x: attack.x, y: attack.y});
+                            if (attack.trail.length > 8) {
+                                attack.trail.shift();
+                            }
+                        }
+                        break;
+
                     case 'mercyHealing':
                     case 'emergencyTreats':
-                        attack.x += attack.dx * delta;
-                        attack.y += attack.dy * delta;
+                        attack.x += attack.dx;
+                        attack.y += attack.dy;
                         if (attack.timer) {
-                            attack.timer -= delta;
+                            attack.timer--;
                             if (attack.timer <= 0) {
                                 attacks.splice(i, 1);
                                 continue;
                             }
                         }
+                        if (attack.pulse !== undefined) {
+                            attack.pulse += 0.1;
+                        }
                         break;
                         
                     case 'string':
-                        attack.x += attack.dx * delta;
-                        attack.y += attack.dy * delta + Math.sin(Date.now() * 0.01 + attack.waveOffset) * 2;
+                        attack.x += attack.dx;
+                        attack.y += attack.dy + Math.sin(frameCount * 0.15 + attack.waveOffset) * 2;
                         break;
                         
                     case 'zoomies':
                     case 'orangeZoomies':
-                        attack.x += attack.dx * delta;
-                        attack.y += attack.dy * delta;
+                        attack.x += attack.dx;
+                        attack.y += attack.dy;
+                        // Add spiral effect if present
+                        if (attack.spiralFactor) {
+                            const spiralAngle = frameCount * attack.spiralFactor;
+                            attack.dx += Math.cos(spiralAngle) * 0.05;
+                            attack.dy += Math.sin(spiralAngle) * 0.05;
+                        }
                         if (attack.trail) {
                             attack.trail.push({x: attack.x, y: attack.y});
                             if (attack.trail.length > 8) {
@@ -3280,14 +3641,14 @@
                         break;
                         
                     case 'blueBones':
-                        attack.x += attack.dx * delta;
-                        attack.y += attack.dy * delta;
+                        attack.x += attack.dx;
+                        attack.y += attack.dy;
                         break;
                         
                     case 'catnip':
-                        attack.timer -= delta;
-                        attack.x += attack.dx * delta;
-                        attack.y += attack.dy * delta;
+                        attack.timer--;
+                        attack.x += attack.dx;
+                        attack.y += attack.dy;
                         if (attack.timer <= 0) {
                             attacks.splice(i, 1);
                             continue;
@@ -3297,7 +3658,7 @@
                     case 'cardboard':
                     case 'hiding':
                     case 'litter':
-                        attack.timer -= delta;
+                        attack.timer--;
                         if (attack.timer <= 0) {
                             attacks.splice(i, 1);
                             continue;
@@ -3306,7 +3667,7 @@
                         
                     case 'pawswipe':
                     case 'enragedSwipe':
-                        attack.timer -= delta;
+                        attack.timer--;
                         if (attack.timer <= 0) {
                             attacks.splice(i, 1);
                             continue;
@@ -3314,8 +3675,8 @@
                         break;
                         
                     case 'laser':
-                        attack.x += attack.dx * delta;
-                        attack.y += attack.dy * delta;
+                        attack.x += attack.dx;
+                        attack.y += attack.dy;
                         if (attack.trail) {
                             attack.trail.push({x: attack.x, y: attack.y});
                             if (attack.trail.length > 10) {
@@ -3325,8 +3686,8 @@
                         break;
                         
                     default:
-                        attack.x += attack.dx * delta;
-                        attack.y += attack.dy * delta;
+                        attack.x += attack.dx;
+                        attack.y += attack.dy;
                 }
                 
                 if (!['cardboard', 'hiding', 'litter', 'pawswipe', 'enragedSwipe'].includes(attack.type)) {
@@ -3398,9 +3759,73 @@
                     ctx.fill();
                     break;
 
+                case 'spiralHealing':
+                    // Enhanced spiral healing visual
+                    if (attack.trail && attack.trail.length > 1) {
+                        ctx.strokeStyle = '#44ff88';
+                        ctx.lineWidth = 4;
+                        ctx.beginPath();
+                        ctx.moveTo(attack.trail[0].x, attack.trail[0].y);
+                        for (let j = 1; j < attack.trail.length; j++) {
+                            ctx.lineTo(attack.trail[j].x, attack.trail[j].y);
+                        }
+                        ctx.stroke();
+                    }
+                    ctx.beginPath();
+                    ctx.arc(attack.x, attack.y, attack.size/2, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.strokeStyle = '#88ffaa';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                    break;
+
+                case 'healingWave':
+                    // Wave healing visual with trail effect
+                    ctx.globalAlpha = 0.8;
+                    ctx.beginPath();
+                    ctx.arc(attack.x, attack.y, attack.size/2, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.strokeStyle = '#66ff66';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                    ctx.globalAlpha = 1;
+                    break;
+
+                case 'healingBurst':
+                    // Burst healing visual with expanding effect
+                    ctx.globalAlpha = 0.7;
+                    ctx.beginPath();
+                    ctx.arc(attack.x, attack.y, attack.size/2, 0, Math.PI * 2);
+                    ctx.fill();
+                    // Outer ring
+                    ctx.strokeStyle = '#88ff88';
+                    ctx.lineWidth = 3;
+                    ctx.stroke();
+                    ctx.globalAlpha = 1;
+                    break;
+
+                case 'flowingHealing':
+                    // Flowing healing with trail
+                    if (attack.trail && attack.trail.length > 1) {
+                        ctx.strokeStyle = '#aaffaa';
+                        ctx.lineWidth = 6;
+                        ctx.globalAlpha = 0.6;
+                        ctx.beginPath();
+                        ctx.moveTo(attack.trail[0].x, attack.trail[0].y);
+                        for (let j = 1; j < attack.trail.length; j++) {
+                            ctx.lineTo(attack.trail[j].x, attack.trail[j].y);
+                        }
+                        ctx.stroke();
+                        ctx.globalAlpha = 1;
+                    }
+                    ctx.beginPath();
+                    ctx.arc(attack.x, attack.y, attack.size/2, 0, Math.PI * 2);
+                    ctx.fill();
+                    break;
+
                 case 'mercyHealing':
                 case 'emergencyTreats':
-                    // Enhanced healing visual
+                    // Enhanced healing visual with pulse
                     ctx.beginPath();
                     ctx.arc(attack.x, attack.y, attack.size/2, 0, Math.PI * 2);
                     ctx.fill();
@@ -3409,17 +3834,18 @@
                     ctx.stroke();
                     
                     // Add pulse effect
-                    const pulseSize = attack.size * (1 + Math.sin(Date.now() * 0.01) * 0.3);
-                    ctx.globalAlpha = 0.3;
+                    const pulseMultiplier = attack.pulse ? (1 + Math.sin(attack.pulse) * 0.3) : (1 + Math.sin(frameCount * 0.15) * 0.3);
+                    const pulseSize = attack.size * pulseMultiplier;
+                    ctx.globalAlpha = 0.4;
                     ctx.beginPath();
                     ctx.arc(attack.x, attack.y, pulseSize/2, 0, Math.PI * 2);
                     ctx.fill();
                     ctx.globalAlpha = 1;
                     
                     // Add sparkles
-                    if (Math.random() < 0.5) {
+                    if (frameCount % 8 === 0) {
                         ctx.fillStyle = '#ffffff';
-                        for (let j = 0; j < 3; j++) {
+                        for (let j = 0; j < 2; j++) {
                             const sparkleX = attack.x + (Math.random() - 0.5) * attack.size;
                             const sparkleY = attack.y + (Math.random() - 0.5) * attack.size;
                             ctx.fillRect(sparkleX - 1, sparkleY - 1, 2, 2);
@@ -3467,7 +3893,7 @@
                     ctx.lineWidth = 2;
                     ctx.stroke();
                     // Add sparkle effect
-                    if (Math.random() < 0.3) {
+                    if (frameCount % 12 === 0) {
                         ctx.fillStyle = '#ffffff';
                         ctx.fillRect(attack.x - 1, attack.y - 1, 2, 2);
                     }
@@ -3555,10 +3981,10 @@
             }
         }
         
-        function updateParticles(delta) {
+        function updateParticles() {
             for (let i = particles.length - 1; i >= 0; i--) {
                 const particle = particles[i];
-                particle.timer -= delta;
+                particle.timer--;
                 
                 if (particle.timer <= 0) {
                     particles.splice(i, 1);
@@ -3566,7 +3992,7 @@
                 }
                 
                 if (particle.type === 'warning') {
-                    const flash = Math.sin(particle.timer * 0.3) > 0;
+                    const flash = Math.sin(particle.timer * 0.4) > 0;
                     if (flash) {
                         ctx.strokeStyle = particle.color;
                         ctx.lineWidth = 3;
@@ -3575,12 +4001,12 @@
                     }
                 } else if (particle.type === 'destruction') {
                     // Update destruction particles
-                    particle.x += particle.dx * delta;
-                    particle.y += particle.dy * delta;
-                    particle.dy += 0.3 * delta; // gravity
+                    particle.x += particle.dx;
+                    particle.y += particle.dy;
+                    particle.dy += 0.3; // gravity
                     
                     ctx.fillStyle = particle.color;
-                    ctx.globalAlpha = particle.timer / 120;
+                    ctx.globalAlpha = particle.timer / 90;
                     ctx.fillRect(particle.x - particle.size/2, particle.y - particle.size/2, particle.size, particle.size);
                     ctx.globalAlpha = 1;
                 }
@@ -3672,6 +4098,10 @@
                     }
                     break;
                 case 'healingTreats':
+                case 'spiralHealing':
+                case 'healingWave':
+                case 'healingBurst':
+                case 'flowingHealing':
                     player.hp = Math.min(player.maxHP, player.hp + (attack.healAmount || 2));
                     updateStats();
                     return;
