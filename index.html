@@ -2036,11 +2036,6 @@
                 return;
             }
             
-            // Block all input during win/gameover states except restart
-            if (isGameEnded()) {
-                return;
-            }
-            
             keys[e.key.toLowerCase()] = true;
             
             // Toggle language with Space or Enter in intro screen
@@ -2055,7 +2050,7 @@
                 }
                 e.preventDefault();
             }
-            else if ((gameState === 'dialogue' || gameState === 'ending') && e.code === 'Space') {
+            else if ((gameState === 'dialogue' || gameState === 'ending') && (e.code === 'Space' || e.code === 'Enter')) {
                 if (gameState === 'dialogue') {
                     nextDialogue();
                 } else if (gameState === 'ending') {
@@ -2063,7 +2058,7 @@
                 }
                 e.preventDefault();
             }
-            else if ((gameState === 'cutscene' || gameState === 'item_destruction_cutscene') && e.code === 'Space') {
+            else if ((gameState === 'cutscene' || gameState === 'item_destruction_cutscene') && (e.code === 'Space' || e.code === 'Enter')) {
                 nextCutsceneDialogue();
                 e.preventDefault();
             }
@@ -2072,6 +2067,11 @@
                 e.preventDefault();
             }
             else if (gameState === 'menu') {
+                // Block menu navigation during final game states, but allow dialogue progression
+                if (gameState === 'win' || gameState === 'gameover') {
+                    return;
+                }
+                
                 if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'ArrowUp' || e.key === 'w') {
                     let newSelection = selectedMenuItem - 1;
                     
@@ -2099,6 +2099,13 @@
                     }
                     e.preventDefault();
                 }
+            }
+            
+            // Block movement during final game states only
+            if ((gameState === 'win' || gameState === 'gameover') && 
+                (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown' ||
+                 e.key === 'a' || e.key === 'd' || e.key === 'w' || e.key === 's')) {
+                return;
             }
         });
         
