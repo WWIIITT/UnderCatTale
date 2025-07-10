@@ -1186,6 +1186,12 @@
             healingPattern: 0
         };
         
+        // Function to check if game is in an end state
+        function isGameEnded() {
+            return gameState === 'win' || gameState === 'gameover' || gameState === 'player_death' || 
+                   gameState === 'death_animation' || gameState === 'ending';
+        }
+        
         // Enhanced clearing functions
         function forceCompleteClearing() {
             console.log("🧹 FORCE COMPLETE CLEARING");
@@ -1777,7 +1783,7 @@
         // Input handling
         document.addEventListener('keydown', (e) => {
             // Block all input during win/gameover states except restart
-            if (gameState === 'win' || gameState === 'gameover' || gameState === 'player_death' || gameState === 'death_animation') {
+            if (isGameEnded()) {
                 return;
             }
             
@@ -1851,7 +1857,7 @@
         document.querySelectorAll('.menu-button').forEach((button, index) => {
             button.addEventListener('click', (e) => {
                 // Block all menu interactions during win/gameover states
-                if (gameState === 'win' || gameState === 'gameover' || gameState === 'player_death' || gameState === 'death_animation') {
+                if (isGameEnded()) {
                     e.preventDefault();
                     return;
                 }
@@ -1886,7 +1892,7 @@
         
         function selectMenuItem() {
             // Block all menu actions during end states
-            if (gameState === 'win' || gameState === 'gameover' || gameState === 'player_death' || gameState === 'death_animation') {
+            if (isGameEnded()) {
                 return;
             }
             
@@ -2168,7 +2174,7 @@
         }
         
         function nextDialogue() {
-            if (gameState === 'win' || gameState === 'gameover' || gameState === 'ending' || gameState === 'player_death' || gameState === 'death_animation') return;
+            if (isGameEnded()) return;
             
             dialogue.style.display = 'none';
             
@@ -2183,7 +2189,7 @@
         
         function startAttackPhase() {
             // Don't start attack phase if game has ended
-            if (gameState === 'win' || gameState === 'gameover' || gameState === 'player_death' || gameState === 'death_animation') {
+            if (isGameEnded()) {
                 return;
             }
             
@@ -2216,14 +2222,14 @@
         }
         
         function endAttackPhase() {
+            // Always clear attacks when ending phase
+            forceCompleteClearing();
+            
             // Don't show menu if game has ended
-            if (gameState === 'win' || gameState === 'gameover' || gameState === 'player_death' || gameState === 'death_animation') {
-                forceCompleteClearing();
+            if (isGameEnded()) {
                 return;
             }
             
-            // Force complete clearing when ending attack phase
-            forceCompleteClearing();
             currentAttackSpan.textContent = t('preparing');
             attackTypeIndicator.style.display = 'none';
             
@@ -3444,7 +3450,7 @@
         
         function updatePlayer() {
             // Don't update player during end states
-            if (gameState === 'win' || gameState === 'gameover' || gameState === 'player_death' || gameState === 'death_animation') {
+            if (isGameEnded()) {
                 return;
             }
             
@@ -4024,7 +4030,7 @@
         
         function checkCollisions() {
             // Don't check collisions if game has ended
-            if (gameState === 'win' || gameState === 'gameover' || gameState === 'player_death' || gameState === 'death_animation') {
+            if (isGameEnded()) {
                 return;
             }
             
