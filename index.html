@@ -440,6 +440,77 @@
             font-size: 12px;
             text-align: center;
         }
+
+        /* Developer Mode */
+        .dev-mode-panel {
+            position: absolute;
+            top: 150px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.9);
+            border: 2px solid #00ff00;
+            padding: 15px;
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            z-index: 1000;
+            display: none;
+        }
+
+        .dev-mode-panel h3 {
+            margin: 0 0 10px 0;
+            color: #00ff00;
+            font-size: 14px;
+        }
+
+        .dev-input-group {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .dev-input-group label {
+            width: 80px;
+            color: #00ff00;
+        }
+
+        .dev-input {
+            background: #000;
+            border: 1px solid #00ff00;
+            color: #00ff00;
+            padding: 3px 5px;
+            width: 60px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+
+        .dev-button {
+            background: #000;
+            border: 1px solid #00ff00;
+            color: #00ff00;
+            padding: 5px 10px;
+            margin-top: 10px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            transition: all 0.2s ease;
+        }
+
+        .dev-button:hover {
+            background: #00ff00;
+            color: #000;
+        }
+
+        .dev-mode-indicator {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #00ff00;
+            font-size: 10px;
+            z-index: 1001;
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -507,6 +578,7 @@
             <p style="color: #ff69b4;" id="instructLine4">Battle will be longer, but your choices will shape the music!</p>
             <p id="instructLine5">Press SPACE to continue</p>
             <p class="language-hint" id="languageHint">Press SPACE or ENTER to change language</p>
+            <p style="color: #444; font-size: 10px; margin-top: 20px;">Press TAB for developer mode</p>
         </div>
         
         <div class="menu-instructions" id="menuInstructions">
@@ -547,6 +619,24 @@
         <!-- Language Toggle -->
         <div class="language-toggle">
             <button class="language-btn" id="languageBtn">中文</button>
+        </div>
+
+        <!-- Developer Mode -->
+        <div class="dev-mode-indicator" id="devModeIndicator">[DEV MODE ACTIVE]</div>
+        <div class="dev-mode-panel" id="devModePanel">
+            <h3>Developer Mode</h3>
+            <div class="dev-input-group">
+                <label id="devPlayerHPLabel">Player HP:</label>
+                <input type="number" class="dev-input" id="devPlayerHP" min="0" max="999" value="20">
+            </div>
+            <div class="dev-input-group">
+                <label id="devBossHPLabel">Cans HP:</label>
+                <input type="number" class="dev-input" id="devBossHP" min="0" max="999" value="250">
+            </div>
+            <button class="dev-button" id="devApplyBtn">Apply Changes</button>
+            <button class="dev-button" id="devMaxBtn">Max HP</button>
+            <button class="dev-button" id="devKillBtn">Instant Kill</button>
+            <button class="dev-button" id="devMercyBtn">Instant Mercy</button>
         </div>
     </div>
 
@@ -775,7 +865,17 @@
                 itemRuinsDialogue: "* The ITEM button lies in ruins... you're on your own now!",
                 mercyVictory: "You befriended Cans! The power of mercy has triumphed!",
                 killVictory: "You defeated Cans... but at what cost?",
-                deathMessage: "Better luck next time! Cans remains undefeated."
+                deathMessage: "Better luck next time! Cans remains undefeated.",
+                
+                // Developer mode
+                devModeTitle: 'Developer Mode',
+                devPlayerHP: 'Player HP:',
+                devBossHP: 'Cans HP:',
+                devApply: 'Apply Changes',
+                devMax: 'Max HP',
+                devKill: 'Instant Kill',
+                devMercy: 'Instant Mercy',
+                devModeActive: '[DEV MODE ACTIVE]'
             },
             
             zh: {
@@ -981,7 +1081,17 @@
                 itemRuinsDialogue: "* 物品按鈕成了廢墟...你現在只能靠自己了！",
                 mercyVictory: "你和 Cans 成為了朋友！仁慈的力量取得了勝利！",
                 killVictory: "你打敗了 Cans...但代價是什麼？",
-                deathMessage: "下次好運！Cans 依然不敗。"
+                deathMessage: "下次好運！Cans 依然不敗。",
+                
+                // Developer mode
+                devModeTitle: '開發者模式',
+                devPlayerHP: '玩家生命值：',
+                devBossHP: 'Cans 生命值：',
+                devApply: '套用變更',
+                devMax: '最大生命值',
+                devKill: '瞬間擊殺',
+                devMercy: '瞬間仁慈',
+                devModeActive: '[開發者模式啟用]'
             }
         };
         
@@ -1031,6 +1141,9 @@
             document.getElementById('victoryTitle').textContent = t('victoryTitle');
             document.getElementById('gameoverTitle').textContent = t('gameoverTitle');
             document.getElementById('rageModeIndicator').textContent = t('rageModeActive');
+            
+            // Update developer mode UI
+            updateDevModeLanguage();
             
             // Update volume label
             const volLabel = document.querySelector('.volume-control span');
@@ -1104,6 +1217,16 @@
         const currentTrack = document.getElementById('currentTrack');
         const rageModeIndicator = document.getElementById('rageModeIndicator');
         
+        // Developer mode elements
+        const devModePanel = document.getElementById('devModePanel');
+        const devModeIndicator = document.getElementById('devModeIndicator');
+        const devPlayerHPInput = document.getElementById('devPlayerHP');
+        const devBossHPInput = document.getElementById('devBossHP');
+        const devApplyBtn = document.getElementById('devApplyBtn');
+        const devMaxBtn = document.getElementById('devMaxBtn');
+        const devKillBtn = document.getElementById('devKillBtn');
+        const devMercyBtn = document.getElementById('devMercyBtn');
+        
         // Cutscene elements
         const cutsceneOverlay = document.getElementById('cutsceneOverlay');
         const cutsceneDialogue = document.getElementById('cutsceneDialogue');
@@ -1174,6 +1297,7 @@
         let attackPhaseTimer = 0;
         let gameLoopId = null;
         let cutsceneStep = 0;
+        let devMode = false; // Developer mode state
         
         // Attack pattern counters for fixed patterns
         let attackPatternCounters = {
@@ -1623,6 +1747,126 @@
             }
         }
         
+        // Developer Mode Functions
+        function toggleDevMode() {
+            devMode = !devMode;
+            if (devMode) {
+                devModePanel.style.display = 'block';
+                devModeIndicator.style.display = 'block';
+                // Update input values to current HP
+                devPlayerHPInput.value = player.hp;
+                devBossHPInput.value = boss.hp;
+                // Update language in dev mode UI
+                updateDevModeLanguage();
+            } else {
+                devModePanel.style.display = 'none';
+                devModeIndicator.style.display = 'none';
+            }
+        }
+
+        function updateDevModeLanguage() {
+            document.querySelector('#devModePanel h3').textContent = t('devModeTitle');
+            document.getElementById('devPlayerHPLabel').textContent = t('devPlayerHP');
+            document.getElementById('devBossHPLabel').textContent = t('devBossHP');
+            devApplyBtn.textContent = t('devApply');
+            devMaxBtn.textContent = t('devMax');
+            devKillBtn.textContent = t('devKill');
+            devMercyBtn.textContent = t('devMercy');
+            devModeIndicator.textContent = t('devModeActive');
+        }
+
+        function applyDevChanges() {
+            const newPlayerHP = parseInt(devPlayerHPInput.value);
+            const newBossHP = parseInt(devBossHPInput.value);
+            
+            if (!isNaN(newPlayerHP) && newPlayerHP >= 0) {
+                player.hp = Math.min(newPlayerHP, 999);
+                player.maxHP = Math.max(player.hp, player.maxHP);
+            }
+            
+            if (!isNaN(newBossHP) && newBossHP >= 0) {
+                boss.hp = Math.min(newBossHP, 999);
+                boss.maxHP = Math.max(boss.hp, boss.maxHP);
+                
+                // Update boss phase based on new HP
+                boss.phase = Math.max(1, Math.floor((boss.maxHP - boss.hp) / 50) + 1);
+                currentPhaseSpan.textContent = boss.phase;
+                
+                // Check for rage mode trigger
+                if (boss.hp <= 125 && !boss.enragedMode && !boss.cutsceneTriggered && boss.fightCount > 0) {
+                    boss.cutsceneTriggered = true;
+                    boss.enragedMode = true;
+                    boss.mood = 'enraged';
+                    if (musicPath === 'genocide') {
+                        switchToRageMusic();
+                    }
+                    rageModeIndicator.style.display = 'block';
+                }
+            }
+            
+            updateStats();
+            
+            // Check for game over conditions
+            if (player.hp <= 0 && gameState === 'attack') {
+                handlePlayerDeath();
+            } else if (boss.hp <= 0 && (gameState === 'menu' || gameState === 'dialogue' || gameState === 'attack')) {
+                endingType = 'kill';
+                startEnding();
+            }
+        }
+
+        // Developer mode event listeners
+        devApplyBtn.addEventListener('click', applyDevChanges);
+        
+        devMaxBtn.addEventListener('click', () => {
+            player.hp = player.maxHP;
+            boss.hp = boss.maxHP;
+            devPlayerHPInput.value = player.hp;
+            devBossHPInput.value = boss.hp;
+            boss.phase = 1;
+            currentPhaseSpan.textContent = boss.phase;
+            updateStats();
+        });
+        
+        devKillBtn.addEventListener('click', () => {
+            boss.hp = 0;
+            devBossHPInput.value = 0;
+            boss.phase = Math.floor((boss.maxHP - boss.hp) / 50) + 1;
+            currentPhaseSpan.textContent = boss.phase;
+            updateStats();
+            
+            // Trigger appropriate ending if in valid game state
+            if (gameState === 'menu' || gameState === 'dialogue' || gameState === 'attack') {
+                endingType = 'kill';
+                startEnding();
+            }
+        });
+        
+        devMercyBtn.addEventListener('click', () => {
+            // Set conditions for mercy ending
+            boss.mood = 'friendly';
+            boss.mercyAttempts = 5;
+            
+            // Trigger mercy ending if in valid game state
+            if (gameState === 'menu' || gameState === 'dialogue' || gameState === 'attack') {
+                endingType = 'mercy';
+                startEnding();
+            }
+        });
+        
+        // Enter key in dev inputs
+        devPlayerHPInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                applyDevChanges();
+            }
+        });
+        
+        devBossHPInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                applyDevChanges();
+            }
+        });
+
         // Audio Control Event Listeners
         musicToggle.addEventListener('click', toggleMusic);
         volumeSlider.addEventListener('input', updateVolume);
@@ -1693,6 +1937,7 @@
             musicPath = 'neutral';
             cutsceneStep = 0;
             frameCount = 0;
+            devMode = false; // Reset developer mode
 
             // Reset attack pattern counters
             attackPatternCounters = {
@@ -1729,6 +1974,8 @@
             attackTypeIndicator.style.display = 'none';
             rageModeIndicator.style.display = 'none';
             cutsceneOverlay.style.display = 'none';
+            devModePanel.style.display = 'none'; // Hide dev mode panel
+            devModeIndicator.style.display = 'none'; // Hide dev mode indicator
             
             // Reset menu selection and restore ITEM button
             const buttons = document.querySelectorAll('.menu-button');
@@ -1782,6 +2029,13 @@
         
         // Input handling
         document.addEventListener('keydown', (e) => {
+            // Tab key for developer mode (works in any state)
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                toggleDevMode();
+                return;
+            }
+            
             // Block all input during win/gameover states except restart
             if (isGameEnded()) {
                 return;
